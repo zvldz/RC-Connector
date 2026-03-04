@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Resources\app.ico</ApplicationIcon>
+    <AssemblyName>RC-Connector</AssemblyName>
+    <RootNamespace>RcConnector</RootNamespace>
+    <Version>0.1.0</Version>
+    <Nullable>enable</Nullable>
+    <Copyright>P Team</Copyright>
+
+    <!-- Publish config: single-file self-contained (no trimming — WinForms incompatible) -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MAVLink" Version="1.0.8" />
+    <PackageReference Include="System.IO.Ports" Version="8.*" />
+  </ItemGroup>
+
+  <!-- Optional author.txt: copy to output if present (gitignored, not in repo) -->
+  <ItemGroup>
+    <Content Include="author.txt" Condition="Exists('author.txt')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

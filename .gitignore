@@ -1,0 +1,33 @@
+## .NET
+bin/
+obj/
+publish/
+*.user
+*.suo
+*.cache
+*.dll
+*.exe
+*.pdb
+
+## IDE
+.vs/
+.vscode/
+*.sln.docstates
+
+## OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+## Build
+*.nupkg
+*.snupkg
+
+## Private branding (not in repo)
+author.txt
+
+## Icon generator tool (one-time use)
+_icongen/
+
+## Claude Code instructions
+CLAUDE.md
