@@ -39,6 +39,10 @@ namespace RcConnector
         private List<(string Id, string Name)> _cachedBleDevices = new();
         private bool _bleScanInProgress;
 
+        // Update
+        private readonly UpdateChecker _updateChecker = new();
+        private bool _updatePending;
+
         // State
         private readonly List<string> _logBuffer = new(100);
         private readonly object _logLock = new();
@@ -139,6 +143,10 @@ namespace RcConnector
                 _trayIcon.BalloonTipText = L.Get("tip_pin_icon");
                 _trayIcon.ShowBalloonTip(5000);
             }
+
+            // Check for updates (delayed, non-blocking)
+            _trayIcon.BalloonTipClicked += OnBalloonClicked;
+            _ = CheckForUpdatesAsync(delayMs: 5000);
         }
 
         public void Dispose()
@@ -360,6 +368,44 @@ namespace RcConnector
                 Log(L.Get("log_settings_updated"));
             };
             _settingsForm.Show();
+        }
+
+        private async void OnBalloonClicked(object? sender, EventArgs e)
+        {
+            if (!_updatePending) return;
+            _updatePending = false;
+
+            Log(L.Get("log_update_downloading", _updateChecker.LatestTag ?? ""));
+            _trayIcon.BalloonTipTitle = "RC-Connector";
+            _trayIcon.BalloonTipText = L.Get("update_downloading");
+            _trayIcon.ShowBalloonTip(3000);
+
+            bool launched = await _updateChecker.DownloadAndLaunchAsync();
+            if (launched)
+            {
+                DoDisconnect();
+                Application.Exit();
+            }
+        }
+
+        private async Task CheckForUpdatesAsync(int delayMs = 0)
+        {
+            if (delayMs > 0) await Task.Delay(delayMs);
+
+            bool hasUpdate = await _updateChecker.CheckAsync();
+            string? tag = _updateChecker.LatestTag;
+
+            // Update About tab
+            _mainForm?.SetLatestVersion(tag?.TrimStart('v', 'V'), hasUpdate);
+
+            if (hasUpdate)
+            {
+                _updatePending = true;
+                Log(L.Get("log_update_available", tag ?? ""));
+                _trayIcon.BalloonTipTitle = L.Get("update_available_title");
+                _trayIcon.BalloonTipText = L.Get("update_available", tag ?? "");
+                _trayIcon.ShowBalloonTip(10000);
+            }
         }
 
         private void OnExitClick(object? sender, EventArgs e)
@@ -644,6 +690,12 @@ namespace RcConnector
             _mainForm.ConnectBleRequested += (id, name) => ConnectBle(id, name);
             _mainForm.ConnectUdpRequested += () => ConnectUdp();
             _mainForm.DisconnectRequested += () => DoDisconnect();
+            _mainForm.CheckUpdateRequested += () => _ = CheckForUpdatesAsync();
+
+            // Show cached latest version in About tab
+            if (_updateChecker.LatestTag != null)
+                _mainForm.SetLatestVersion(_updateChecker.LatestTag.TrimStart('v', 'V'),
+                    _updatePending);
 
             _mainForm.FormClosing += (s, e) =>
             {

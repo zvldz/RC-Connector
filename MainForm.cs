@@ -35,8 +35,10 @@ namespace RcConnector
         private readonly Label _statusTransport;
         private readonly Label _statusArm;
         private readonly Label _statusMode;
-        private readonly TextBox _logBox;
+        private readonly RichTextBox _logBox;
         private readonly Button _clearLogButton;
+        private int _logLineCount;
+        private DataGridViewRow? _latestVersionRow;
 
         // Toolbar
         private readonly Panel _toolbarPanel;
@@ -49,6 +51,7 @@ namespace RcConnector
         public event Action<string, string>? ConnectBleRequested;
         public event Action? ConnectUdpRequested;
         public event Action? DisconnectRequested;
+        public event Action? CheckUpdateRequested;
 
         public MainForm(AppSettings settings)
         {
@@ -224,11 +227,10 @@ namespace RcConnector
 
             // Tab 2: Log
             var logTab = new TabPage(L.Get("tab_log"));
-            _logBox = new TextBox
+            _logBox = new RichTextBox
             {
-                Multiline = true,
                 ReadOnly = true,
-                ScrollBars = ScrollBars.Vertical,
+                ScrollBars = RichTextBoxScrollBars.Vertical,
                 Dock = DockStyle.Fill,
                 Font = new Font("Consolas", LOG_FONT_SIZE),
                 BackColor = Color.FromArgb(30, 30, 30),
@@ -240,7 +242,7 @@ namespace RcConnector
                 Dock = DockStyle.Bottom,
                 Height = 24,
             };
-            _clearLogButton.Click += (s, e) => _logBox.Clear();
+            _clearLogButton.Click += (s, e) => { _logBox.Clear(); _logLineCount = 0; };
 
             logTab.Controls.Add(_logBox);
             logTab.Controls.Add(_clearLogButton);
@@ -248,16 +250,79 @@ namespace RcConnector
 
             // Tab 3: About
             var aboutTab = new TabPage(L.Get("tab_about"));
-            var aboutLabel = new Label
+
+            var aboutIcon = new PictureBox
             {
-                Dock = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleCenter,
-                Font = new Font("Consolas", LOG_FONT_SIZE),
-                Text = $"{AppInfo.AppName} v{AppInfo.Version}\n" +
-                       $"Build: {AppInfo.BuildDate}\n\n" +
-                       AppInfo.Author,
+                Size = new Size(48, 48),
+                SizeMode = PictureBoxSizeMode.Zoom,
+                Anchor = AnchorStyles.Top,
             };
-            aboutTab.Controls.Add(aboutLabel);
+            try
+            {
+                var ico = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+                if (ico != null)
+                    aboutIcon.Image = ico.ToBitmap();
+            }
+            catch { }
+
+            var aboutGrid = new DataGridView
+            {
+                ColumnCount = 2,
+                RowHeadersVisible = false,
+                ColumnHeadersVisible = false,
+                AllowUserToAddRows = false,
+                AllowUserToResizeRows = false,
+                AllowUserToResizeColumns = false,
+                ReadOnly = true,
+                ScrollBars = ScrollBars.None,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                BackgroundColor = aboutTab.BackColor,
+                BorderStyle = BorderStyle.None,
+                CellBorderStyle = DataGridViewCellBorderStyle.Single,
+                GridColor = Color.FromArgb(200, 200, 200),
+                AlternatingRowsDefaultCellStyle = new DataGridViewCellStyle { BackColor = Color.FromArgb(245, 245, 250) },
+                Font = new Font("Segoe UI", FONT_SIZE),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+            };
+            aboutGrid.Columns[0].DefaultCellStyle.Font = new Font("Segoe UI", FONT_SIZE, FontStyle.Bold);
+            aboutGrid.Columns[0].DefaultCellStyle.BackColor = Color.FromArgb(240, 240, 240);
+            aboutGrid.DefaultCellStyle.SelectionBackColor = aboutTab.BackColor;
+            aboutGrid.DefaultCellStyle.SelectionForeColor = aboutGrid.DefaultCellStyle.ForeColor;
+            aboutGrid.Rows.Add(L.Get("about_app"), AppInfo.AppName);
+            aboutGrid.Rows.Add(L.Get("about_version"), AppInfo.Version);
+            int latestRowIdx = aboutGrid.Rows.Add(L.Get("about_latest"), "—");
+            aboutGrid.Rows.Add(L.Get("about_build"), AppInfo.BuildDate);
+            aboutGrid.Rows.Add(L.Get("about_author"), AppInfo.Author);
+            _latestVersionRow = aboutGrid.Rows[latestRowIdx];
+
+            var btnCheckUpdate = new Button
+            {
+                Text = L.Get("about_check_update"),
+                AutoSize = true,
+                FlatStyle = FlatStyle.System,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left,
+            };
+            btnCheckUpdate.Click += (s, ev) => CheckUpdateRequested?.Invoke();
+
+            aboutTab.Layout += (s, ev) =>
+            {
+                int pad = 10;
+                int iconW = aboutIcon.Width;
+                int iconH = aboutIcon.Height;
+                int gridWidth = aboutTab.ClientSize.Width - pad * 2;
+                aboutIcon.Location = new Point((aboutTab.ClientSize.Width - iconW) / 2, pad);
+                aboutGrid.Location = new Point(pad, iconH + pad * 2);
+                int gridH = aboutGrid.Rows.GetRowsHeight(DataGridViewElementStates.Visible) + 2;
+                aboutGrid.Size = new Size(gridWidth, gridH);
+                aboutGrid.Columns[0].Width = gridWidth / 3;
+                aboutGrid.Columns[1].Width = gridWidth - gridWidth / 3 - 2;
+                btnCheckUpdate.Location = new Point(pad, aboutGrid.Bottom + pad);
+                btnCheckUpdate.Width = gridWidth;
+            };
+
+            aboutTab.Controls.Add(btnCheckUpdate);
+            aboutTab.Controls.Add(aboutGrid);
+            aboutTab.Controls.Add(aboutIcon);
             _tabs.TabPages.Add(aboutTab);
 
             // Layout (reverse order: last added Dock.Top renders first)
@@ -372,9 +437,21 @@ namespace RcConnector
                 BeginInvoke(new Action(() =>
                 {
                     if (_logBox.TextLength > 32000)
-                        _logBox.Text = _logBox.Text.Substring(_logBox.TextLength - 16000);
+                    {
+                        _logBox.Clear();
+                        _logLineCount = 0;
+                    }
 
-                    _logBox.AppendText(entry + Environment.NewLine);
+                    string line = entry + Environment.NewLine;
+                    int start = _logBox.TextLength;
+                    _logBox.AppendText(line);
+                    _logBox.Select(start, line.Length);
+                    _logBox.SelectionBackColor = (_logLineCount % 2 == 0)
+                        ? Color.FromArgb(30, 30, 30)
+                        : Color.FromArgb(50, 50, 58);
+                    _logBox.SelectionColor = Color.LightGray;
+                    _logBox.Select(_logBox.TextLength, 0);
+                    _logLineCount++;
                 }));
             }
             catch (ObjectDisposedException) { }
@@ -396,6 +473,30 @@ namespace RcConnector
                     _btnDisconnect.Visible = connected;
                     if (connected)
                         _btnDisconnect.Text = L.Get("menu_disconnect") + " (" + transportName + ")";
+                }));
+            }
+            catch (ObjectDisposedException) { }
+        }
+
+        /// <summary>
+        /// Update the "Latest" version row in About tab. Thread-safe.
+        /// </summary>
+        public void SetLatestVersion(string? version, bool isNewer)
+        {
+            if (IsDisposed || !IsHandleCreated || _latestVersionRow == null)
+                return;
+
+            try
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    string text = version ?? "—";
+                    if (isNewer)
+                        text += " \u2B06"; // ⬆ arrow
+                    _latestVersionRow.Cells[1].Value = text;
+                    _latestVersionRow.Cells[1].Style.ForeColor = isNewer
+                        ? Color.FromArgb(0, 140, 0)
+                        : Color.Black;
                 }));
             }
             catch (ObjectDisposedException) { }

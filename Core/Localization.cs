@@ -64,6 +64,12 @@ namespace RcConnector.Core
             ["tab_log"] = "Log",
             ["tab_about"] = "About",
             ["btn_clear"] = "Clear",
+            ["about_app"] = "App",
+            ["about_version"] = "Version",
+            ["about_build"] = "Build",
+            ["about_author"] = "Author",
+            ["about_latest"] = "Latest",
+            ["about_check_update"] = "Check for updates",
 
             // SettingsForm
             ["settings_title"] = "RC-Connector Settings",
@@ -83,6 +89,14 @@ namespace RcConnector.Core
 
             // First-run tip
             ["tip_pin_icon"] = "Tip: pin RC-Connector icon to taskbar for easy access.\nRight-click taskbar → Taskbar settings → Select which icons appear.",
+
+            // Update
+            ["update_available_title"] = "Update Available",
+            ["update_available"] = "Version {0} is available. Click to update.",
+            ["update_downloading"] = "Downloading update...",
+            ["update_failed"] = "Update download failed. Opening release page...",
+            ["log_update_available"] = "Update available: {0}",
+            ["log_update_downloading"] = "Downloading update {0}...",
         };
 
         private static readonly Dictionary<string, string> UK = new()
@@ -138,6 +152,12 @@ namespace RcConnector.Core
             ["tab_log"] = "Лог",
             ["tab_about"] = "Про програму",
             ["btn_clear"] = "Очистити",
+            ["about_app"] = "Програма",
+            ["about_version"] = "Версія",
+            ["about_build"] = "Збірка",
+            ["about_author"] = "Автор",
+            ["about_latest"] = "Остання",
+            ["about_check_update"] = "Перевірити оновлення",
 
             // SettingsForm
             ["settings_title"] = "RC-Connector Налаштування",
@@ -157,6 +177,14 @@ namespace RcConnector.Core
 
             // First-run tip
             ["tip_pin_icon"] = "Порада: закріпіть іконку RC-Connector на панелі завдань.\nПКМ панель завдань → Параметри панелі → Виберіть іконки.",
+
+            // Update
+            ["update_available_title"] = "Оновлення доступне",
+            ["update_available"] = "Доступна версія {0}. Натисніть для оновлення.",
+            ["update_downloading"] = "Завантаження оновлення...",
+            ["update_failed"] = "Не вдалося завантажити оновлення. Відкриваємо сторінку релізу...",
+            ["log_update_available"] = "Доступне оновлення: {0}",
+            ["log_update_downloading"] = "Завантаження оновлення {0}...",
         };
 
         /// <summary>

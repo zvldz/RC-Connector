@@ -11,7 +11,7 @@ InstallDirRegKey HKLM "Software\RC-Connector" "InstallDir"
 RequestExecutionLevel admin
 
 ; --- Version info ---
-!define VERSION "0.2.0"
+!define VERSION "0.2.1"
 VIProductVersion "${VERSION}.0"
 VIAddVersionKey "ProductName" "RC-Connector"
 VIAddVersionKey "FileVersion" "${VERSION}"
@@ -60,6 +60,10 @@ FunctionEnd
 
 ; --- Install ---
 Section "Install"
+    ; Close running instance if any
+    nsExec::ExecToLog 'taskkill /f /im RC-Connector.exe'
+    Sleep 1000
+
     SetOutPath "$INSTDIR"
 
     ; Copy all files from publish-folder
