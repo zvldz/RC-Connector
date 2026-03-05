@@ -1,5 +1,6 @@
 using System;
 using System.IO.Ports;
+using System.Linq;
 using System.Threading;
 using Timer = System.Threading.Timer;
 
@@ -17,6 +18,7 @@ namespace RcConnector.Transport
 
         private SerialPort? _port;
         private readonly string _portName;
+        private readonly bool _dtrRtsFix;
         private DateTime _lastDataTime = DateTime.MinValue;
         private Timer? _watchdog;
 
@@ -26,9 +28,10 @@ namespace RcConnector.Transport
         public event Action<string>? DataReceived;
         public event Action<string>? Disconnected;
 
-        public SerialTransport(string portName)
+        public SerialTransport(string portName, bool dtrRtsFix = true)
         {
             _portName = portName;
+            _dtrRtsFix = dtrRtsFix;
         }
 
         public void Connect()
@@ -43,11 +46,18 @@ namespace RcConnector.Transport
                 _port = new SerialPort(_portName, BAUD, Parity.None, 8, StopBits.One);
                 _port.ReadTimeout = 100;
 
-                // ESP32-C3/S3 DTR/RTS fix: prevent reset on port open
-                _port.DtrEnable = false;
-                _port.Handshake = Handshake.RequestToSend;
-                _port.Open();
-                _port.Handshake = Handshake.None;
+                if (_dtrRtsFix)
+                {
+                    // ESP32-C3/S3 DTR/RTS fix: prevent reset on port open
+                    _port.DtrEnable = false;
+                    _port.Handshake = Handshake.RequestToSend;
+                    _port.Open();
+                    _port.Handshake = Handshake.None;
+                }
+                else
+                {
+                    _port.Open();
+                }
 
                 _port.DataReceived += Port_DataReceived;
                 _lastDataTime = DateTime.UtcNow;
@@ -81,7 +91,7 @@ namespace RcConnector.Transport
         /// </summary>
         public static string[] GetPortNames()
         {
-            var ports = SerialPort.GetPortNames();
+            var ports = SerialPort.GetPortNames().Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             Array.Sort(ports, StringComparer.OrdinalIgnoreCase);
             return ports;
         }

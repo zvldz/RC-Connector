@@ -2,6 +2,11 @@
 bin/
 obj/
 publish/
+publish-full/
+publish-lite/
+publish-folder/
+RC-Connector-Setup.exe
+RC-Connector-Setup.zip
 *.user
 *.suo
 *.cache
@@ -31,3 +36,7 @@ _icongen/
 
 ## Claude Code instructions
 CLAUDE.md
+
+## Local project docs (not in repo)
+CHANGELOG.md
+TODO.md

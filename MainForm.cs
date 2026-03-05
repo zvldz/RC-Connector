@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using RcConnector.Core;
@@ -15,19 +16,20 @@ namespace RcConnector
         private const ushort PWM_MIN = 800;
         private const ushort PWM_MAX = 2200;
 
-        // Base sizes at 96 DPI (100% scaling)
-        private const int BASE_BAR_HEIGHT = 16;
-        private const int BASE_BAR_SPACING = 2;
-        private const int BASE_BAR_WIDTH = 200;
-        private const int BASE_LABEL_WIDTH = 22;
-        private const int BASE_VALUE_WIDTH = 38;
-        private const float BASE_FONT_SIZE = 7.5f;
-        private const float BASE_LOG_FONT_SIZE = 8f;
-        private const int BASE_STATUS_HEIGHT = 18;
+        // Base sizes at 96 DPI — framework auto-scales via AutoScaleMode.Font
+        private const int BAR_HEIGHT = 16;
+        private const int BAR_SPACING = 2;
+        private const int BAR_WIDTH = 200;
+        private const int LABEL_WIDTH = 24;
+        private const int VALUE_WIDTH = 38;
+        private const float FONT_SIZE = 7.5f;
+        private const float LOG_FONT_SIZE = 8f;
+        private const int STATUS_HEIGHT = 18;
 
         private readonly TabControl _tabs;
         private readonly Panel _channelPanel;
-        private readonly ProgressBar[] _bars = new ProgressBar[CHANNEL_COUNT];
+        private readonly Panel[] _barBgs = new Panel[CHANNEL_COUNT];
+        private readonly Panel[] _bars = new Panel[CHANNEL_COUNT];
         private readonly Label[] _valueLabels = new Label[CHANNEL_COUNT];
         private readonly Panel _statusPanel;
         private readonly Label _statusTransport;
@@ -36,27 +38,33 @@ namespace RcConnector
         private readonly TextBox _logBox;
         private readonly Button _clearLogButton;
 
+        // Toolbar
+        private readonly Panel _toolbarPanel;
+        private readonly Button _btnConnect;
+        private readonly Button _btnDisconnect;
+        private readonly ContextMenuStrip _connectDropdown;
+
+        /// <summary>Events for connect/disconnect actions.</summary>
+        public event Action<string>? ConnectSerialRequested;
+        public event Action<string, string>? ConnectBleRequested;
+        public event Action? ConnectUdpRequested;
+        public event Action? DisconnectRequested;
+
         public MainForm(AppSettings settings)
         {
-            Text = "RC-Connector";
+            SuspendLayout();
+
+            AutoScaleDimensions = new SizeF(6F, 13F);
+            AutoScaleMode = settings.AdaptiveDpi ? AutoScaleMode.Font : AutoScaleMode.None;
+
+            Text = L.Get("form_title");
             FormBorderStyle = FormBorderStyle.FixedToolWindow;
             StartPosition = FormStartPosition.Manual;
             ShowInTaskbar = false;
             MaximizeBox = false;
 
-            // DPI-adaptive scaling (can be disabled in settings → use base sizes)
-            float scale = settings.AdaptiveDpi ? DeviceDpi / 96f : 1f;
-            int barHeight = (int)(BASE_BAR_HEIGHT * scale);
-            int barSpacing = (int)(BASE_BAR_SPACING * scale);
-            int barWidth = (int)(BASE_BAR_WIDTH * scale);
-            int labelWidth = (int)(BASE_LABEL_WIDTH * scale);
-            int valueWidth = (int)(BASE_VALUE_WIDTH * scale);
-            float fontSize = BASE_FONT_SIZE * scale;
-            float logFontSize = BASE_LOG_FONT_SIZE * scale;
-            int statusHeight = (int)(BASE_STATUS_HEIGHT * scale);
-
-            int formWidth = labelWidth + barWidth + valueWidth + (int)(30 * scale);
-            int channelAreaHeight = CHANNEL_COUNT * (barHeight + barSpacing) + (int)(10 * scale);
+            int formWidth = LABEL_WIDTH + BAR_WIDTH + VALUE_WIDTH + 30;
+            int channelAreaHeight = CHANNEL_COUNT * (BAR_HEIGHT + BAR_SPACING) + 10;
 
             // Restore position
             if (settings.WindowX >= 0 && settings.WindowY >= 0)
@@ -71,36 +79,35 @@ namespace RcConnector
             }
 
             // --- Status bar (top) ---
-            var statusFont = new Font("Consolas", fontSize);
-            int pad4 = (int)(4 * scale);
+            var statusFont = new Font("Consolas", FONT_SIZE);
 
             _statusPanel = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = statusHeight,
+                Height = STATUS_HEIGHT,
                 BackColor = Color.FromArgb(40, 40, 40),
             };
 
             _statusTransport = new Label
             {
-                AutoSize = true,
+                AutoSize = false,
                 Font = statusFont,
                 ForeColor = Color.LightGray,
                 BackColor = Color.Transparent,
-                Text = "Disconnected",
+                Text = L.Get("status_disconnected"),
                 TextAlign = ContentAlignment.MiddleLeft,
-                Location = new Point(pad4, 0),
-                Height = statusHeight,
+                Dock = DockStyle.Fill,
+                Padding = new Padding(4, 0, 0, 0),
             };
 
             _statusArm = new Label
             {
                 AutoSize = true,
-                Font = new Font("Consolas", fontSize, FontStyle.Bold),
+                Font = new Font("Consolas", FONT_SIZE, FontStyle.Bold),
                 Text = "",
                 TextAlign = ContentAlignment.MiddleCenter,
-                Height = statusHeight,
-                Padding = new Padding(pad4, 0, pad4, 0),
+                Height = STATUS_HEIGHT,
+                Padding = new Padding(4, 0, 4, 0),
             };
 
             _statusMode = new Label
@@ -109,65 +116,106 @@ namespace RcConnector
                 Font = statusFont,
                 Text = "",
                 TextAlign = ContentAlignment.MiddleCenter,
-                Height = statusHeight,
-                Padding = new Padding(pad4, 0, pad4, 0),
+                Height = STATUS_HEIGHT,
+                Padding = new Padding(4, 0, 4, 0),
             };
 
             _statusPanel.Controls.Add(_statusMode);
             _statusPanel.Controls.Add(_statusArm);
             _statusPanel.Controls.Add(_statusTransport);
 
+            // --- Toolbar (connect/disconnect) ---
+            int toolbarHeight = 30;
+            _connectDropdown = new ContextMenuStrip();
+
+            _btnConnect = new Button
+            {
+                Text = L.Get("menu_connect") + " \u25BC",
+                Location = new Point(2, 2),
+                Size = new Size(100, toolbarHeight - 4),
+                FlatStyle = FlatStyle.System,
+            };
+            _btnConnect.Click += (s, e) =>
+            {
+                _connectDropdown.Show(_btnConnect, new Point(0, _btnConnect.Height));
+            };
+
+            _btnDisconnect = new Button
+            {
+                Text = L.Get("menu_disconnect"),
+                Location = new Point(2, 2),
+                Size = new Size(100, toolbarHeight - 4),
+                Visible = false,
+                FlatStyle = FlatStyle.System,
+            };
+            _btnDisconnect.Click += (s, e) => DisconnectRequested?.Invoke();
+
+            _toolbarPanel = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = toolbarHeight,
+                BackColor = Color.FromArgb(220, 220, 220),
+                Padding = new Padding(2),
+            };
+            _toolbarPanel.Controls.Add(_btnConnect);
+            _toolbarPanel.Controls.Add(_btnDisconnect);
+
             // --- Tab control ---
             _tabs = new TabControl
             {
                 Dock = DockStyle.Fill,
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                Appearance = TabAppearance.FlatButtons,
             };
 
             // Tab 1: Channels
-            var channelTab = new TabPage("Channels");
-            int pad = (int)(4 * scale);
+            var channelTab = new TabPage(L.Get("tab_channels"));
             _channelPanel = new Panel
             {
                 Dock = DockStyle.Fill,
                 AutoScroll = false,
-                Padding = new Padding(pad),
+                Padding = new Padding(4),
             };
 
-            int gap = (int)(6 * scale);
             for (int i = 0; i < CHANNEL_COUNT; i++)
             {
-                int y = pad + i * (barHeight + barSpacing);
+                int y = 4 + i * (BAR_HEIGHT + BAR_SPACING);
 
                 var chLabel = new Label
                 {
                     Text = (i + 1).ToString(),
-                    Location = new Point(pad, y),
-                    Size = new Size(labelWidth, barHeight),
+                    Location = new Point(4, y),
+                    Size = new Size(LABEL_WIDTH, BAR_HEIGHT),
                     TextAlign = ContentAlignment.MiddleRight,
-                    Font = new Font("Consolas", fontSize),
+                    Font = new Font("Consolas", FONT_SIZE),
                 };
 
-                _bars[i] = new ProgressBar
+                _barBgs[i] = new Panel
                 {
-                    Location = new Point(labelWidth + gap, y),
-                    Size = new Size(barWidth, barHeight),
-                    Minimum = PWM_MIN,
-                    Maximum = PWM_MAX,
-                    Value = 1500,
-                    Style = ProgressBarStyle.Continuous,
+                    Location = new Point(LABEL_WIDTH + 6, y),
+                    Size = new Size(BAR_WIDTH, BAR_HEIGHT),
+                    BackColor = Color.FromArgb(220, 220, 220),
+                    BorderStyle = BorderStyle.FixedSingle,
                 };
+                _bars[i] = new Panel
+                {
+                    Location = new Point(0, 0),
+                    Size = new Size(BAR_WIDTH / 2, BAR_HEIGHT),
+                    BackColor = Color.FromArgb(60, 150, 60),
+                };
+                _barBgs[i].Controls.Add(_bars[i]);
 
                 _valueLabels[i] = new Label
                 {
                     Text = "----",
-                    Location = new Point(labelWidth + barWidth + gap + (int)(2 * scale), y),
-                    Size = new Size(valueWidth, barHeight),
+                    Location = new Point(LABEL_WIDTH + BAR_WIDTH + 8, y),
+                    Size = new Size(VALUE_WIDTH, BAR_HEIGHT),
                     TextAlign = ContentAlignment.MiddleLeft,
-                    Font = new Font("Consolas", fontSize),
+                    Font = new Font("Consolas", FONT_SIZE),
                 };
 
                 _channelPanel.Controls.Add(chLabel);
-                _channelPanel.Controls.Add(_bars[i]);
+                _channelPanel.Controls.Add(_barBgs[i]);
                 _channelPanel.Controls.Add(_valueLabels[i]);
             }
 
@@ -175,22 +223,22 @@ namespace RcConnector
             _tabs.TabPages.Add(channelTab);
 
             // Tab 2: Log
-            var logTab = new TabPage("Log");
+            var logTab = new TabPage(L.Get("tab_log"));
             _logBox = new TextBox
             {
                 Multiline = true,
                 ReadOnly = true,
                 ScrollBars = ScrollBars.Vertical,
                 Dock = DockStyle.Fill,
-                Font = new Font("Consolas", logFontSize),
+                Font = new Font("Consolas", LOG_FONT_SIZE),
                 BackColor = Color.FromArgb(30, 30, 30),
                 ForeColor = Color.LightGray,
             };
             _clearLogButton = new Button
             {
-                Text = "Clear",
+                Text = L.Get("btn_clear"),
                 Dock = DockStyle.Bottom,
-                Height = (int)(24 * scale),
+                Height = 24,
             };
             _clearLogButton.Click += (s, e) => _logBox.Clear();
 
@@ -199,12 +247,12 @@ namespace RcConnector
             _tabs.TabPages.Add(logTab);
 
             // Tab 3: About
-            var aboutTab = new TabPage("About");
+            var aboutTab = new TabPage(L.Get("tab_about"));
             var aboutLabel = new Label
             {
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleCenter,
-                Font = new Font("Consolas", logFontSize),
+                Font = new Font("Consolas", LOG_FONT_SIZE),
                 Text = $"{AppInfo.AppName} v{AppInfo.Version}\n" +
                        $"Build: {AppInfo.BuildDate}\n\n" +
                        AppInfo.Author,
@@ -212,11 +260,15 @@ namespace RcConnector
             aboutTab.Controls.Add(aboutLabel);
             _tabs.TabPages.Add(aboutTab);
 
-            // Layout
+            // Layout (reverse order: last added Dock.Top renders first)
             Controls.Add(_tabs);
             Controls.Add(_statusPanel);
+            Controls.Add(_toolbarPanel);
 
-            ClientSize = new Size(formWidth, statusHeight + channelAreaHeight + (int)(30 * scale));
+            ClientSize = new Size(formWidth, toolbarHeight + STATUS_HEIGHT + channelAreaHeight + 30);
+
+            ResumeLayout(false);
+            PerformLayout();
         }
 
         /// <summary>
@@ -234,12 +286,17 @@ namespace RcConnector
                     for (int i = 0; i < CHANNEL_COUNT && i < channels.Length; i++)
                     {
                         int val = Math.Clamp(channels[i], PWM_MIN, PWM_MAX);
-                        _bars[i].Value = val;
+                        int bgWidth = _barBgs[i].ClientSize.Width;
+                        int fillWidth = (int)((val - PWM_MIN) / (float)(PWM_MAX - PWM_MIN) * bgWidth);
+                        _bars[i].Width = Math.Max(0, fillWidth);
                         _valueLabels[i].Text = channels[i].ToString();
 
                         // Color: red at extremes, green in normal range
-                        _valueLabels[i].ForeColor =
-                            (channels[i] <= 810 || channels[i] >= 2190) ? Color.Red : Color.Black;
+                        bool extreme = channels[i] <= 810 || channels[i] >= 2190;
+                        _valueLabels[i].ForeColor = extreme ? Color.Red : Color.Black;
+                        _bars[i].BackColor = extreme
+                            ? Color.FromArgb(200, 50, 50)
+                            : Color.FromArgb(60, 150, 60);
                     }
                 }));
             }
@@ -261,7 +318,7 @@ namespace RcConnector
                 {
                     if (!connected)
                     {
-                        _statusTransport.Text = "Disconnected";
+                        _statusTransport.Text = L.Get("status_disconnected");
                         _statusPanel.BackColor = Color.FromArgb(40, 40, 40);
                         _statusArm.Text = "";
                         _statusMode.Text = "";
@@ -271,7 +328,7 @@ namespace RcConnector
                         _statusTransport.Text = $"{transportName} {hz:0}Hz";
                         _statusPanel.BackColor = Color.FromArgb(80, 60, 20);
                         _statusArm.Text = "";
-                        _statusMode.Text = "No drone";
+                        _statusMode.Text = L.Get("status_no_drone");
                         _statusMode.ForeColor = Color.Orange;
                         _statusMode.BackColor = Color.Transparent;
                     }
@@ -281,7 +338,7 @@ namespace RcConnector
                         _statusPanel.BackColor = Color.FromArgb(40, 40, 40);
 
                         // Armed / Disarmed badge
-                        _statusArm.Text = armed ? " ARMED " : " DISARMED ";
+                        _statusArm.Text = armed ? L.Get("status_armed") : L.Get("status_disarmed");
                         _statusArm.ForeColor = Color.White;
                         _statusArm.BackColor = armed
                             ? Color.FromArgb(180, 40, 40)
@@ -321,6 +378,76 @@ namespace RcConnector
                 }));
             }
             catch (ObjectDisposedException) { }
+        }
+
+        /// <summary>
+        /// Update toolbar connect/disconnect visibility. Thread-safe.
+        /// </summary>
+        public void SetConnected(bool connected, string transportName)
+        {
+            if (IsDisposed || !IsHandleCreated)
+                return;
+
+            try
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    _btnConnect.Visible = !connected;
+                    _btnDisconnect.Visible = connected;
+                    if (connected)
+                        _btnDisconnect.Text = L.Get("menu_disconnect") + " (" + transportName + ")";
+                }));
+            }
+            catch (ObjectDisposedException) { }
+        }
+
+        /// <summary>
+        /// Populate the connect dropdown menu with available devices.
+        /// </summary>
+        public void PopulateConnectMenu(string[] comPorts, List<(string Id, string Name)> bleDevices,
+            int udpPort, AppSettings settings)
+        {
+            _connectDropdown.Items.Clear();
+
+            // COM ports
+            var comMenu = new ToolStripMenuItem("COM");
+            if (comPorts.Length == 0)
+            {
+                comMenu.DropDownItems.Add(new ToolStripMenuItem(L.Get("menu_no_ports")) { Enabled = false });
+            }
+            else
+            {
+                foreach (var port in comPorts)
+                {
+                    var item = new ToolStripMenuItem(port);
+                    if (port == settings.ComPort)
+                        item.Font = new Font(item.Font, FontStyle.Bold);
+                    string p = port;
+                    item.Click += (s, e) => ConnectSerialRequested?.Invoke(p);
+                    comMenu.DropDownItems.Add(item);
+                }
+            }
+            _connectDropdown.Items.Add(comMenu);
+
+            // BLE devices
+            var bleMenu = new ToolStripMenuItem("BLE");
+            foreach (var (id, name) in bleDevices)
+            {
+                var item = new ToolStripMenuItem(name);
+                if (id == settings.BleDeviceId)
+                    item.Font = new Font(item.Font, FontStyle.Bold);
+                string devId = id, devName = name;
+                item.Click += (s, e) => ConnectBleRequested?.Invoke(devId, devName);
+                bleMenu.DropDownItems.Add(item);
+            }
+            if (bleDevices.Count == 0)
+                bleMenu.DropDownItems.Add(new ToolStripMenuItem("—") { Enabled = false });
+            _connectDropdown.Items.Add(bleMenu);
+
+            // UDP
+            var udpItem = new ToolStripMenuItem($"UDP :{udpPort}");
+            udpItem.Click += (s, e) => ConnectUdpRequested?.Invoke();
+            _connectDropdown.Items.Add(udpItem);
         }
 
         /// <summary>

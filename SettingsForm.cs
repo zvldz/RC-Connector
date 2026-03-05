@@ -6,7 +6,7 @@ using RcConnector.Core;
 namespace RcConnector
 {
     /// <summary>
-    /// Settings window: MAVLink config, UDP ESP port, UI options.
+    /// Settings window: MAVLink config, UDP ESP port, UI options, language.
     /// Transport selection moved to tray Connect submenu.
     /// </summary>
     internal sealed class SettingsForm : Form
@@ -20,8 +20,13 @@ namespace RcConnector
         // UDP ESP source
         private readonly TextBox _txtUdpPort;
 
+        // Serial
+        private readonly CheckBox _chkDtrRtsFix;
+
         // UI
         private readonly CheckBox _chkAdaptiveDpi;
+        private readonly ComboBox _cboLanguage;
+        private readonly CheckBox _chkStartup;
 
         /// <summary>Fired when user clicks Apply with new settings.</summary>
         public event Action<AppSettings>? ApplyRequested;
@@ -30,7 +35,12 @@ namespace RcConnector
         {
             _settings = settings;
 
-            Text = "RC-Connector Settings";
+            SuspendLayout();
+
+            AutoScaleDimensions = new SizeF(6F, 13F);
+            AutoScaleMode = AutoScaleMode.Font;
+
+            Text = L.Get("settings_title");
             FormBorderStyle = FormBorderStyle.FixedDialog;
             StartPosition = FormStartPosition.CenterScreen;
             MaximizeBox = false;
@@ -41,7 +51,7 @@ namespace RcConnector
             int controlX = 120;
 
             // --- MAVLink port ---
-            AddLabel("MAVLink port:", 10, y);
+            AddLabel(L.Get("settings_mavlink_port"), 10, y);
             _txtMavlinkPort = new TextBox
             {
                 Location = new Point(controlX, y),
@@ -49,21 +59,12 @@ namespace RcConnector
                 Text = settings.MavlinkPort.ToString(),
             };
             Controls.Add(_txtMavlinkPort);
+            AddHint(L.Get("settings_mavlink_port_hint"), controlX + 85, y);
 
-            var lblPortHint = new Label
-            {
-                Text = "14550 = GCS default, avoid conflict",
-                Location = new Point(controlX + 85, y + 3),
-                AutoSize = true,
-                ForeColor = Color.Gray,
-                Font = new Font(Font.FontFamily, 7.5f),
-            };
-            Controls.Add(lblPortHint);
-
-            y += 30;
+            y += 26;
 
             // --- MAVLink System ID ---
-            AddLabel("MAVLink sysid:", 10, y);
+            AddLabel(L.Get("settings_mavlink_sysid"), 10, y);
             _txtMavlinkSysId = new TextBox
             {
                 Location = new Point(controlX, y),
@@ -71,21 +72,12 @@ namespace RcConnector
                 Text = settings.MavlinkSysId.ToString(),
             };
             Controls.Add(_txtMavlinkSysId);
+            AddHint(L.Get("settings_mavlink_sysid_hint"), controlX + 55, y);
 
-            var lblSysIdHint = new Label
-            {
-                Text = "Must match SYSID_MYGCS on drone",
-                Location = new Point(controlX + 55, y + 3),
-                AutoSize = true,
-                ForeColor = Color.Gray,
-                Font = new Font(Font.FontFamily, 7.5f),
-            };
-            Controls.Add(lblSysIdHint);
-
-            y += 30;
+            y += 26;
 
             // --- UDP ESP listen port ---
-            AddLabel("UDP ESP port:", 10, y);
+            AddLabel(L.Get("settings_udp_port"), 10, y);
             _txtUdpPort = new TextBox
             {
                 Location = new Point(controlX, y),
@@ -93,80 +85,134 @@ namespace RcConnector
                 Text = settings.UdpListenPort.ToString(),
             };
             Controls.Add(_txtUdpPort);
+            AddHint(L.Get("settings_udp_port_hint"), controlX + 85, y);
 
-            var lblUdpHint = new Label
+            y += 28;
+
+            // --- Serial DTR/RTS fix ---
+            _chkDtrRtsFix = new CheckBox
             {
-                Text = "ESP32 WiFi source port",
-                Location = new Point(controlX + 85, y + 3),
+                Text = L.Get("settings_dtr_rts"),
+                Location = new Point(10, y),
                 AutoSize = true,
-                ForeColor = Color.Gray,
-                Font = new Font(Font.FontFamily, 7.5f),
+                Checked = settings.SerialDtrRts,
             };
-            Controls.Add(lblUdpHint);
+            Controls.Add(_chkDtrRtsFix);
 
-            y += 36;
+            y += 22;
 
             // --- Adaptive DPI ---
             _chkAdaptiveDpi = new CheckBox
             {
-                Text = "Adaptive UI scaling",
+                Text = L.Get("settings_adaptive_dpi"),
                 Location = new Point(10, y),
                 AutoSize = true,
                 Checked = settings.AdaptiveDpi,
             };
             Controls.Add(_chkAdaptiveDpi);
 
-            y += 30;
+            y += 22;
+
+            // --- Language ---
+            AddLabel(L.Get("settings_language"), 10, y);
+            _cboLanguage = new ComboBox
+            {
+                Location = new Point(controlX, y),
+                Width = 120,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+            };
+            _cboLanguage.Items.Add(L.Get("settings_lang_auto"));
+            _cboLanguage.Items.Add("English");
+            _cboLanguage.Items.Add("Українська");
+            _cboLanguage.SelectedIndex = settings.Language switch
+            {
+                "en" => 1,
+                "uk" => 2,
+                _ => 0,
+            };
+            Controls.Add(_cboLanguage);
+
+            y += 26;
+
+            // --- Run at startup ---
+            _chkStartup = new CheckBox
+            {
+                Text = L.Get("settings_startup"),
+                Location = new Point(10, y),
+                AutoSize = true,
+                Checked = settings.RunAtStartup,
+            };
+            Controls.Add(_chkStartup);
+
+            y += 28;
 
             // --- Separator ---
-            var sep = new Label
+            Controls.Add(new Label
             {
                 BorderStyle = BorderStyle.Fixed3D,
                 Location = new Point(10, y),
                 Size = new Size(340, 2),
-            };
-            Controls.Add(sep);
+            });
 
-            y += 12;
+            y += 8;
 
             // --- Buttons ---
             var btnApply = new Button
             {
-                Text = "Apply",
-                Location = new Point(200, y),
-                Width = 75,
-                Height = 28,
+                Text = L.Get("settings_apply"),
+                Location = new Point(185, y),
+                Size = new Size(80, 24),
             };
             btnApply.Click += OnApplyClick;
 
             var btnClose = new Button
             {
-                Text = "Close",
-                Location = new Point(280, y),
-                Width = 75,
-                Height = 28,
+                Text = L.Get("settings_close"),
+                Location = new Point(270, y),
+                Size = new Size(80, 24),
             };
             btnClose.Click += (s, e) => Close();
 
             Controls.Add(btnApply);
             Controls.Add(btnClose);
 
-            ClientSize = new Size(370, y + 44);
+            ClientSize = new Size(355, y + 32);
+
+            ResumeLayout(false);
+            PerformLayout();
         }
 
         private void AddLabel(string text, int x, int y)
         {
-            var lbl = new Label
+            Controls.Add(new Label
             {
                 Text = text,
                 Location = new Point(x, y + 3),
                 AutoSize = true,
-            };
-            Controls.Add(lbl);
+            });
+        }
+
+        private void AddHint(string text, int x, int y)
+        {
+            Controls.Add(new Label
+            {
+                Text = text,
+                Location = new Point(x, y + 3),
+                AutoSize = true,
+                ForeColor = Color.Gray,
+                Font = new Font(Font.FontFamily, 7.5f),
+            });
         }
 
         private void OnApplyClick(object? sender, EventArgs e)
         {
+            string lang = _cboLanguage.SelectedIndex switch
+            {
+                1 => "en",
+                2 => "uk",
+                _ => "auto",
+            };
+
             var newSettings = new AppSettings
             {
                 // Preserve current transport settings (managed by tray Connect menu)
@@ -182,12 +228,16 @@ namespace RcConnector
                     ? sid : _settings.MavlinkSysId,
                 UdpListenPort = int.TryParse(_txtUdpPort.Text, out int up) && up > 0 && up <= 65535
                     ? up : _settings.UdpListenPort,
+                SerialDtrRts = _chkDtrRtsFix.Checked,
                 AdaptiveDpi = _chkAdaptiveDpi.Checked,
+                Language = lang,
+                RunAtStartup = _chkStartup.Checked,
 
                 // Preserve UI state
                 AlwaysOnTop = _settings.AlwaysOnTop,
                 WindowX = _settings.WindowX,
                 WindowY = _settings.WindowY,
+                FirstRunDone = _settings.FirstRunDone,
             };
 
             ApplyRequested?.Invoke(newSettings);

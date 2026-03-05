@@ -24,12 +24,18 @@ jobs:
         run: >
           dotnet publish -c Release -r win-x64
           --self-contained
-          -p:PublishSingleFile=true
-          -p:EnableCompressionInSingleFile=true
-          -o publish
+          -o publish-folder
+
+      - name: Build NSIS installer
+        uses: joncloud/makensis-action@v4
+        with:
+          script-file: installer.nsi
+
+      - name: Rename installer
+        run: mv RC-Connector-Setup.exe RC-Connector-${{ github.ref_name }}-Setup.exe
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: publish/RC-Connector.exe
+          files: RC-Connector-${{ github.ref_name }}-Setup.exe
           generate_release_notes: true

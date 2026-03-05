@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Windows.Forms;
+using RcConnector.Core;
 
 namespace RcConnector
 {
@@ -11,10 +12,14 @@ namespace RcConnector
         [STAThread]
         static void Main()
         {
+            // Load settings early to init language before any UI
+            var settings = AppSettings.Load();
+            L.Init(settings.Language);
+
             using var mutex = new Mutex(true, MutexName, out bool createdNew);
             if (!createdNew)
             {
-                MessageBox.Show("RC-Connector is already running.", "RC-Connector",
+                MessageBox.Show(L.Get("already_running"), "RC-Connector",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }

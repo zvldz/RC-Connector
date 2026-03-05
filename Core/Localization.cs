@@ -1,0 +1,201 @@
+using System.Collections.Generic;
+using System.Globalization;
+
+namespace RcConnector.Core
+{
+    /// <summary>
+    /// Simple localization: English (en) and Ukrainian (uk).
+    /// Usage: L.Get("key") or L._("key")
+    /// </summary>
+    internal static class L
+    {
+        private static string _lang = "en";
+
+        private static readonly Dictionary<string, string> EN = new()
+        {
+            // Program.cs
+            ["already_running"] = "RC-Connector is already running.",
+
+            // Tray menu
+            ["menu_connect"] = "Connect",
+            ["menu_disconnect"] = "Disconnect",
+            ["menu_show"] = "Show",
+            ["menu_always_on_top"] = "Always on Top",
+            ["menu_settings"] = "Settings...",
+            ["menu_exit"] = "Exit",
+            ["menu_no_ports"] = "No ports",
+            ["menu_refresh"] = "Refresh",
+            ["menu_scanning"] = "Scanning...",
+
+            // Tray tooltips
+            ["tip_disconnected"] = "RC-Connector: Disconnected",
+            ["tip_ble_auth_failed"] = "RC-Connector: BLE auth failed. Re-pair device.",
+            ["tip_connecting"] = "RC-Connector: Connecting...",
+            ["tip_ok"] = "RC-Connector: OK {0}Hz",
+            ["tip_ok_armed"] = "RC-Connector: OK {0}Hz ARMED",
+            ["tip_rc_ok_no_drone"] = "RC-Connector: RC OK, no drone",
+            ["tip_no_rc_drone_ok"] = "RC-Connector: No RC data, drone OK",
+            ["tip_connected_no_data"] = "RC-Connector: Connected, no data",
+
+            // Log messages
+            ["log_mavlink_started"] = "MAVLink started: port={0}, sysid={1}",
+            ["log_mavlink_start_failed"] = "MAVLink start failed: {0}",
+            ["log_mavlink_restarted"] = "MAVLink restarted: port={0}, sysid={1}",
+            ["log_mavlink_restart_failed"] = "MAVLink restart failed: {0}",
+            ["log_connected_to"] = "Connected to {0}",
+            ["log_connect_failed"] = "Connect failed: {0}",
+            ["log_connecting_ble"] = "Connecting to BLE: {0}",
+            ["log_ble_auth_failed"] = "BLE auth failed: {0}",
+            ["log_ble_found"] = "BLE: found {0} device(s)",
+            ["log_listening_udp"] = "Listening for ESP32 on UDP:{0}",
+            ["log_disconnected"] = "Disconnected",
+            ["log_disconnected_reason"] = "Disconnected: {0}",
+            ["log_drone_connected"] = "Drone connected (sysid={0})",
+            ["log_drone_disconnected"] = "Drone disconnected",
+            ["log_settings_updated"] = "Settings updated",
+
+            // MainForm
+            ["form_title"] = "RC-Connector",
+            ["status_disconnected"] = "Disconnected",
+            ["status_no_drone"] = "No drone",
+            ["status_armed"] = " ARMED ",
+            ["status_disarmed"] = " DISARMED ",
+            ["tab_channels"] = "Channels",
+            ["tab_log"] = "Log",
+            ["tab_about"] = "About",
+            ["btn_clear"] = "Clear",
+
+            // SettingsForm
+            ["settings_title"] = "RC-Connector Settings",
+            ["settings_mavlink_port"] = "MAVLink port:",
+            ["settings_mavlink_port_hint"] = "14550 = GCS default, avoid conflict",
+            ["settings_mavlink_sysid"] = "MAVLink sysid:",
+            ["settings_mavlink_sysid_hint"] = "Must match SYSID_MYGCS on drone",
+            ["settings_udp_port"] = "UDP ESP port:",
+            ["settings_udp_port_hint"] = "ESP32 WiFi source port",
+            ["settings_dtr_rts"] = "Enable DTR/RTS on serial connect",
+            ["settings_adaptive_dpi"] = "Adaptive UI scaling",
+            ["settings_language"] = "Language:",
+            ["settings_lang_auto"] = "Auto",
+            ["settings_startup"] = "Run at Windows startup",
+            ["settings_apply"] = "Apply",
+            ["settings_close"] = "Close",
+
+            // First-run tip
+            ["tip_pin_icon"] = "Tip: pin RC-Connector icon to taskbar for easy access.\nRight-click taskbar → Taskbar settings → Select which icons appear.",
+        };
+
+        private static readonly Dictionary<string, string> UK = new()
+        {
+            // Program.cs
+            ["already_running"] = "RC-Connector вже запущено.",
+
+            // Tray menu
+            ["menu_connect"] = "З'єднати",
+            ["menu_disconnect"] = "Від'єднати",
+            ["menu_show"] = "Показати",
+            ["menu_always_on_top"] = "Завжди зверху",
+            ["menu_settings"] = "Налаштування...",
+            ["menu_exit"] = "Вихід",
+            ["menu_no_ports"] = "Немає портів",
+            ["menu_refresh"] = "Оновити",
+            ["menu_scanning"] = "Сканування...",
+
+            // Tray tooltips
+            ["tip_disconnected"] = "RC-Connector: Від'єднано",
+            ["tip_ble_auth_failed"] = "RC-Connector: Помилка BLE авторизації. Перепаруйте пристрій.",
+            ["tip_connecting"] = "RC-Connector: З'єднання...",
+            ["tip_ok"] = "RC-Connector: OK {0}Hz",
+            ["tip_ok_armed"] = "RC-Connector: OK {0}Hz ARMED",
+            ["tip_rc_ok_no_drone"] = "RC-Connector: RC OK, немає дрона",
+            ["tip_no_rc_drone_ok"] = "RC-Connector: Немає RC даних, дрон OK",
+            ["tip_connected_no_data"] = "RC-Connector: З'єднано, немає даних",
+
+            // Log messages
+            ["log_mavlink_started"] = "MAVLink запущено: порт={0}, sysid={1}",
+            ["log_mavlink_start_failed"] = "MAVLink не вдалося запустити: {0}",
+            ["log_mavlink_restarted"] = "MAVLink перезапущено: порт={0}, sysid={1}",
+            ["log_mavlink_restart_failed"] = "MAVLink не вдалося перезапустити: {0}",
+            ["log_connected_to"] = "З'єднано з {0}",
+            ["log_connect_failed"] = "Помилка з'єднання: {0}",
+            ["log_connecting_ble"] = "З'єднання з BLE: {0}",
+            ["log_ble_auth_failed"] = "Помилка BLE авторизації: {0}",
+            ["log_ble_found"] = "BLE: знайдено {0} пристрій(ів)",
+            ["log_listening_udp"] = "Очікування ESP32 на UDP:{0}",
+            ["log_disconnected"] = "Від'єднано",
+            ["log_disconnected_reason"] = "Від'єднано: {0}",
+            ["log_drone_connected"] = "Дрон з'єднано (sysid={0})",
+            ["log_drone_disconnected"] = "Дрон від'єднано",
+            ["log_settings_updated"] = "Налаштування оновлено",
+
+            // MainForm
+            ["form_title"] = "RC-Connector",
+            ["status_disconnected"] = "Від'єднано",
+            ["status_no_drone"] = "Немає дрона",
+            ["status_armed"] = " ARMED ",
+            ["status_disarmed"] = " DISARMED ",
+            ["tab_channels"] = "Канали",
+            ["tab_log"] = "Лог",
+            ["tab_about"] = "Про програму",
+            ["btn_clear"] = "Очистити",
+
+            // SettingsForm
+            ["settings_title"] = "RC-Connector Налаштування",
+            ["settings_mavlink_port"] = "MAVLink порт:",
+            ["settings_mavlink_port_hint"] = "14550 = GCS за замовчуванням",
+            ["settings_mavlink_sysid"] = "MAVLink sysid:",
+            ["settings_mavlink_sysid_hint"] = "Має відповідати SYSID_MYGCS дрона",
+            ["settings_udp_port"] = "UDP ESP порт:",
+            ["settings_udp_port_hint"] = "Порт ESP32 WiFi джерела",
+            ["settings_dtr_rts"] = "Увімкнути DTR/RTS при з'єднанні",
+            ["settings_adaptive_dpi"] = "Адаптивне масштабування",
+            ["settings_language"] = "Мова:",
+            ["settings_lang_auto"] = "Авто",
+            ["settings_startup"] = "Запускати з Windows",
+            ["settings_apply"] = "Застосувати",
+            ["settings_close"] = "Закрити",
+
+            // First-run tip
+            ["tip_pin_icon"] = "Порада: закріпіть іконку RC-Connector на панелі завдань.\nПКМ панель завдань → Параметри панелі → Виберіть іконки.",
+        };
+
+        /// <summary>
+        /// Initialize language. Call once at startup after loading settings.
+        /// </summary>
+        public static void Init(string language)
+        {
+            if (language == "auto" || string.IsNullOrEmpty(language))
+            {
+                var culture = CultureInfo.CurrentUICulture;
+                _lang = culture.TwoLetterISOLanguageName == "uk" ? "uk" : "en";
+            }
+            else
+            {
+                _lang = language;
+            }
+        }
+
+        public static string CurrentLanguage => _lang;
+
+        /// <summary>Get localized string by key. Falls back to English, then returns key.</summary>
+        public static string Get(string key)
+        {
+            var dict = _lang == "uk" ? UK : EN;
+            if (dict.TryGetValue(key, out var val))
+                return val;
+            if (_lang != "en" && EN.TryGetValue(key, out val))
+                return val;
+            return key;
+        }
+
+        /// <summary>Get localized string with format arguments.</summary>
+        public static string Get(string key, params object[] args)
+        {
+            return string.Format(Get(key), args);
+        }
+
+        /// <summary>Shorthand alias for Get().</summary>
+        public static string _(string key) => Get(key);
+        public static string _(string key, params object[] args) => Get(key, args);
+    }
+}

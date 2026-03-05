@@ -7,16 +7,11 @@
     <ApplicationIcon>Resources\app.ico</ApplicationIcon>
     <AssemblyName>RC-Connector</AssemblyName>
     <RootNamespace>RcConnector</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Nullable>enable</Nullable>
     <Copyright>P Team</Copyright>
 
-    <!-- Publish config: single-file self-contained (no trimming — WinForms incompatible) -->
-    <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>true</SelfContained>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
   </PropertyGroup>
 
   <ItemGroup>

@@ -62,11 +62,11 @@ namespace RcConnector
             _mavlink.DroneStatusChanged += OnDroneStatusChanged;
 
             // Context menu
-            _connectMenu = new ToolStripMenuItem("Connect");
-            _disconnectItem = new ToolStripMenuItem("Disconnect", null, (s, e) => DoDisconnect());
+            _connectMenu = new ToolStripMenuItem(L.Get("menu_connect"));
+            _disconnectItem = new ToolStripMenuItem(L.Get("menu_disconnect"), null, (s, e) => DoDisconnect());
             _disconnectItem.Visible = false;
-            _showItem = new ToolStripMenuItem("Show", null, OnShowClick);
-            _alwaysOnTopItem = new ToolStripMenuItem("Always on Top", null, OnAlwaysOnTopClick)
+            _showItem = new ToolStripMenuItem(L.Get("menu_show"), null, OnShowClick);
+            _alwaysOnTopItem = new ToolStripMenuItem(L.Get("menu_always_on_top"), null, OnAlwaysOnTopClick)
             {
                 Checked = _settings.AlwaysOnTop
             };
@@ -78,13 +78,13 @@ namespace RcConnector
             _contextMenu.Items.Add(_showItem);
             _contextMenu.Items.Add(_alwaysOnTopItem);
             _contextMenu.Items.Add(new ToolStripSeparator());
-            _contextMenu.Items.Add("Settings...", null, OnSettingsClick);
+            _contextMenu.Items.Add(L.Get("menu_settings"), null, OnSettingsClick);
             _contextMenu.Items.Add(new ToolStripSeparator());
             var aboutItem = new ToolStripMenuItem($"{AppInfo.AppName} v{AppInfo.Version}  ({AppInfo.Author})");
             aboutItem.Enabled = false;
             _contextMenu.Items.Add(aboutItem);
             _contextMenu.Items.Add(new ToolStripSeparator());
-            _contextMenu.Items.Add("Exit", null, OnExitClick);
+            _contextMenu.Items.Add(L.Get("menu_exit"), null, OnExitClick);
 
             // Build submenu dynamically on open
             _contextMenu.Opening += (s, e) => RebuildConnectMenu();
@@ -102,7 +102,7 @@ namespace RcConnector
             _trayIcon = new NotifyIcon
             {
                 Icon = CreateColorIcon(Color.Gray),
-                Text = "RC-Connector: Disconnected",
+                Text = L.Get("tip_disconnected"),
                 ContextMenuStrip = _contextMenu,
                 Visible = true,
             };
@@ -117,11 +117,11 @@ namespace RcConnector
             try
             {
                 _mavlink.Start(_settings.MavlinkPort, _settings.MavlinkSysId);
-                Log($"MAVLink started: port={_settings.MavlinkPort}, sysid={_settings.MavlinkSysId}");
+                Log(L.Get("log_mavlink_started", _settings.MavlinkPort, _settings.MavlinkSysId));
             }
             catch (Exception ex)
             {
-                Log("MAVLink start failed: " + ex.Message);
+                Log(L.Get("log_mavlink_start_failed", ex.Message));
             }
 
             // Pre-scan BLE devices in background
@@ -129,6 +129,16 @@ namespace RcConnector
             {
                 _cachedBleDevices = await BleTransport.GetPairedNusDevicesAsync();
             });
+
+            // First-run tip: suggest pinning tray icon
+            if (!_settings.FirstRunDone)
+            {
+                _settings.FirstRunDone = true;
+                _settings.Save();
+                _trayIcon.BalloonTipTitle = "RC-Connector";
+                _trayIcon.BalloonTipText = L.Get("tip_pin_icon");
+                _trayIcon.ShowBalloonTip(5000);
+            }
         }
 
         public void Dispose()
@@ -173,9 +183,9 @@ namespace RcConnector
         private void OnDroneStatusChanged(bool connected)
         {
             if (connected)
-                Log("Drone connected (sysid=" + _mavlink.DroneSystemId + ")");
+                Log(L.Get("log_drone_connected", _mavlink.DroneSystemId));
             else
-                Log("Drone disconnected");
+                Log(L.Get("log_drone_disconnected"));
         }
 
         // ---------------------------------------------------------------
@@ -193,48 +203,51 @@ namespace RcConnector
                 _lastRateCalc = now;
             }
 
-            Color iconColor;
             string tooltip;
 
             // BLE auth failure — DarkRed even when disconnected
             bool bleAuthFailed = _transport is BleTransport ble && ble.AuthFailed;
+            bool hasRcData = _lastRcData != DateTime.MinValue &&
+                             (now - _lastRcData).TotalMilliseconds <= LED_TIMEOUT_MS;
 
             if (!_connected && !bleAuthFailed)
             {
-                iconColor = Color.Gray;
-                tooltip = "RC-Connector: Disconnected";
+                tooltip = L.Get("tip_disconnected");
+                UpdateTrayIcon(Color.Gray, tooltip);
             }
             else if (bleAuthFailed)
             {
-                iconColor = Color.DarkRed;
-                tooltip = "RC-Connector: BLE auth failed. Re-pair device.";
+                tooltip = L.Get("tip_ble_auth_failed");
+                UpdateTrayIcon(Color.DarkRed, tooltip);
             }
             else if (_transport == null || !_transport.IsConnected)
             {
-                // Trying to connect — blink red
                 bool blink = (DateTime.Now.Millisecond / 500) % 2 == 0;
-                iconColor = blink ? Color.Red : Color.Gray;
-                tooltip = "RC-Connector: Connecting...";
+                tooltip = L.Get("tip_connecting");
+                UpdateTrayIcon(blink ? Color.Red : Color.Gray, tooltip);
             }
-            else if (_lastRcData == DateTime.MinValue ||
-                     (now - _lastRcData).TotalMilliseconds > LED_TIMEOUT_MS)
+            else if (hasRcData && _mavlink.DroneConnected)
             {
-                iconColor = Color.Orange;
-                tooltip = "RC-Connector: Connected, no RC data";
+                tooltip = _mavlink.DroneArmed
+                    ? L.Get("tip_ok_armed", DataRateHz.ToString("0"))
+                    : L.Get("tip_ok", DataRateHz.ToString("0"));
+                UpdateTrayIcon(Color.LimeGreen, tooltip);
             }
-            else if (!_mavlink.DroneConnected)
+            else if (hasRcData && !_mavlink.DroneConnected)
             {
-                iconColor = Color.Orange;
-                tooltip = "RC-Connector: RC OK, no drone";
+                tooltip = L.Get("tip_rc_ok_no_drone");
+                UpdateTrayIcon(Color.LimeGreen, Color.FromArgb(160, 50, 30), tooltip);
+            }
+            else if (!hasRcData && _mavlink.DroneConnected)
+            {
+                tooltip = L.Get("tip_no_rc_drone_ok");
+                UpdateTrayIcon(Color.FromArgb(160, 50, 30), Color.LimeGreen, tooltip);
             }
             else
             {
-                iconColor = Color.LimeGreen;
-                tooltip = $"RC-Connector: OK {DataRateHz:0}Hz" +
-                          (_mavlink.DroneArmed ? " ARMED" : "");
+                tooltip = L.Get("tip_connected_no_data");
+                UpdateTrayIcon(Color.Orange, tooltip);
             }
-
-            UpdateTrayIcon(iconColor, tooltip);
 
             // Update main form status
             _mainForm?.UpdateStatus(
@@ -248,15 +261,25 @@ namespace RcConnector
 
         private void UpdateTrayIcon(Color color, string tooltip)
         {
+            UpdateTrayIconInternal(color.ToArgb().ToString(), tooltip, () => CreateColorIcon(color));
+        }
+
+        private void UpdateTrayIcon(Color leftColor, Color rightColor, string tooltip)
+        {
+            string colorKey = $"{leftColor.ToArgb()}|{rightColor.ToArgb()}";
+            UpdateTrayIconInternal(colorKey, tooltip, () => CreateSplitIcon(leftColor, rightColor));
+        }
+
+        private void UpdateTrayIconInternal(string colorKey, string tooltip, Func<Icon> createIcon)
+        {
             _trayIcon.Text = tooltip.Length > 63 ? tooltip.Substring(0, 63) : tooltip;
 
             // Only recreate icon if color changed
             var currentTag = _trayIcon.Tag as string;
-            string colorKey = color.ToArgb().ToString();
             if (currentTag != colorKey)
             {
                 var oldIcon = _trayIcon.Icon;
-                _trayIcon.Icon = CreateColorIcon(color);
+                _trayIcon.Icon = createIcon();
                 _trayIcon.Tag = colorKey;
                 oldIcon?.Dispose();
             }
@@ -293,11 +316,20 @@ namespace RcConnector
                 bool mavlinkChanged = _settings.MavlinkPort != newSettings.MavlinkPort ||
                     _settings.MavlinkSysId != newSettings.MavlinkSysId;
                 bool dpiChanged = _settings.AdaptiveDpi != newSettings.AdaptiveDpi;
+                bool langChanged = _settings.Language != newSettings.Language;
 
                 _settings.UdpListenPort = newSettings.UdpListenPort;
                 _settings.MavlinkPort = newSettings.MavlinkPort;
                 _settings.MavlinkSysId = newSettings.MavlinkSysId;
+                _settings.SerialDtrRts = newSettings.SerialDtrRts;
                 _settings.AdaptiveDpi = newSettings.AdaptiveDpi;
+                _settings.Language = newSettings.Language;
+                _settings.RunAtStartup = newSettings.RunAtStartup;
+                SetStartupRegistry(newSettings.RunAtStartup);
+
+                // Apply language change
+                if (langChanged)
+                    L.Init(_settings.Language);
 
                 // Restart MAVLink only if port or sysid changed
                 if (mavlinkChanged)
@@ -306,16 +338,16 @@ namespace RcConnector
                     {
                         _mavlink.Stop();
                         _mavlink.Start(_settings.MavlinkPort, _settings.MavlinkSysId);
-                        Log($"MAVLink restarted: port={_settings.MavlinkPort}, sysid={_settings.MavlinkSysId}");
+                        Log(L.Get("log_mavlink_restarted", _settings.MavlinkPort, _settings.MavlinkSysId));
                     }
                     catch (Exception ex)
                     {
-                        Log("MAVLink restart failed: " + ex.Message);
+                        Log(L.Get("log_mavlink_restart_failed", ex.Message));
                     }
                 }
 
-                // Recreate main form if DPI scaling changed
-                if (dpiChanged && _mainForm != null && !_mainForm.IsDisposed)
+                // Recreate main form if DPI scaling or language changed
+                if ((dpiChanged || langChanged) && _mainForm != null && !_mainForm.IsDisposed)
                 {
                     bool wasVisible = _mainForm.Visible;
                     _mainForm.Dispose();
@@ -325,7 +357,7 @@ namespace RcConnector
                 }
 
                 _settings.Save();
-                Log("Settings updated");
+                Log(L.Get("log_settings_updated"));
             };
             _settingsForm.Show();
         }
@@ -356,7 +388,7 @@ namespace RcConnector
             var ports = SerialTransport.GetPortNames();
             if (ports.Length == 0)
             {
-                comMenu.DropDownItems.Add(new ToolStripMenuItem("No ports") { Enabled = false });
+                comMenu.DropDownItems.Add(new ToolStripMenuItem(L.Get("menu_no_ports")) { Enabled = false });
             }
             else
             {
@@ -392,17 +424,17 @@ namespace RcConnector
                 }
                 bleMenu.DropDownItems.Add(new ToolStripSeparator());
             }
-            var refreshItem = new ToolStripMenuItem("Refresh");
+            var refreshItem = new ToolStripMenuItem(L.Get("menu_refresh"));
             refreshItem.MouseDown += (s, e) => _bleScanInProgress = true;
             refreshItem.Click += async (s, e) =>
             {
-                refreshItem.Text = "Scanning...";
+                refreshItem.Text = L.Get("menu_scanning");
                 refreshItem.Enabled = false;
 
                 try
                 {
                     _cachedBleDevices = await BleTransport.GetPairedNusDevicesAsync();
-                    Log($"BLE: found {_cachedBleDevices.Count} device(s)");
+                    Log(L.Get("log_ble_found", _cachedBleDevices.Count));
 
                     // Rebuild BLE submenu items (keep refreshItem at bottom)
                     bleMenu.DropDownItems.Clear();
@@ -420,7 +452,7 @@ namespace RcConnector
                 }
                 finally
                 {
-                    refreshItem.Text = "Refresh";
+                    refreshItem.Text = L.Get("menu_refresh");
                     refreshItem.Enabled = true;
                     bleMenu.DropDownItems.Add(refreshItem);
                     _bleScanInProgress = false;
@@ -444,7 +476,7 @@ namespace RcConnector
             try
             {
                 _transport?.Dispose();
-                var serial = new SerialTransport(portName);
+                var serial = new SerialTransport(portName, dtrRtsFix: !_settings.SerialDtrRts);
                 WireTransport(serial);
                 _transport = serial;
                 _transport.Connect();
@@ -454,12 +486,14 @@ namespace RcConnector
                 _settings.ComPort = portName;
                 _settings.Save();
 
-                Log("Connected to " + portName);
+                Log(L.Get("log_connected_to", portName));
+                UpdateMainFormToolbar();
             }
             catch (Exception ex)
             {
-                Log("Connect failed: " + ex.Message);
+                Log(L.Get("log_connect_failed", ex.Message));
                 _connected = false;
+                UpdateMainFormToolbar();
             }
         }
 
@@ -470,7 +504,7 @@ namespace RcConnector
                 _transport?.Dispose();
                 var ble = new BleTransport(deviceId, deviceName);
                 WireTransport(ble);
-                ble.AuthFailure += reason => Log("BLE auth failed: " + reason);
+                ble.AuthFailure += reason => Log(L.Get("log_ble_auth_failed", reason));
                 ble.LogMessage += msg => Log(msg);
                 _transport = ble;
                 _transport.Connect();
@@ -481,12 +515,14 @@ namespace RcConnector
                 _settings.BleDeviceName = deviceName;
                 _settings.Save();
 
-                Log("Connecting to BLE: " + deviceName);
+                Log(L.Get("log_connecting_ble", deviceName));
+                UpdateMainFormToolbar();
             }
             catch (Exception ex)
             {
-                Log("Connect failed: " + ex.Message);
+                Log(L.Get("log_connect_failed", ex.Message));
                 _connected = false;
+                UpdateMainFormToolbar();
             }
         }
 
@@ -505,12 +541,14 @@ namespace RcConnector
                 _settings.SourceMode = SourceMode.UDP;
                 _settings.Save();
 
-                Log("Listening for ESP32 on UDP:" + port);
+                Log(L.Get("log_listening_udp", port));
+                UpdateMainFormToolbar();
             }
             catch (Exception ex)
             {
-                Log("Connect failed: " + ex.Message);
+                Log(L.Get("log_connect_failed", ex.Message));
                 _connected = false;
+                UpdateMainFormToolbar();
             }
         }
 
@@ -519,7 +557,7 @@ namespace RcConnector
             transport.DataReceived += data => _parser.Feed(data);
             transport.Disconnected += reason =>
             {
-                Log("Disconnected: " + reason);
+                Log(L.Get("log_disconnected_reason", reason));
                 // Don't send ClearRcOverride on connection loss — just stop sending
             };
         }
@@ -535,7 +573,34 @@ namespace RcConnector
             _transport?.Disconnect();
             _connected = false;
             _lastRcData = DateTime.MinValue;
-            Log("Disconnected");
+            Log(L.Get("log_disconnected"));
+            UpdateMainFormToolbar();
+        }
+
+        // ---------------------------------------------------------------
+        // Startup registry
+        // ---------------------------------------------------------------
+
+        private static void SetStartupRegistry(bool enable)
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                    @"Software\Microsoft\Windows\CurrentVersion\Run", true);
+                if (key == null) return;
+
+                if (enable)
+                {
+                    string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "";
+                    if (!string.IsNullOrEmpty(exePath))
+                        key.SetValue("RC-Connector", $"\"{exePath}\"");
+                }
+                else
+                {
+                    key.DeleteValue("RC-Connector", false);
+                }
+            }
+            catch { }
         }
 
         // ---------------------------------------------------------------
@@ -574,6 +639,12 @@ namespace RcConnector
             _mainForm = new MainForm(_settings);
             _mainForm.TopMost = _settings.AlwaysOnTop;
 
+            // Wire connect/disconnect events
+            _mainForm.ConnectSerialRequested += port => ConnectSerial(port);
+            _mainForm.ConnectBleRequested += (id, name) => ConnectBle(id, name);
+            _mainForm.ConnectUdpRequested += () => ConnectUdp();
+            _mainForm.DisconnectRequested += () => DoDisconnect();
+
             _mainForm.FormClosing += (s, e) =>
             {
                 // Save window position on any close/hide
@@ -588,12 +659,29 @@ namespace RcConnector
                 _mainForm.Hide();
             };
             _mainForm.Show();
+            UpdateMainFormToolbar();
 
             // Replay buffered log entries (after Show — handle must exist)
             lock (_logLock)
             {
                 foreach (var entry in _logBuffer)
                     _mainForm.AppendLog(entry);
+            }
+        }
+
+        private void UpdateMainFormToolbar()
+        {
+            if (_mainForm == null || _mainForm.IsDisposed)
+                return;
+
+            _mainForm.SetConnected(_connected, _transport?.DisplayName ?? "");
+            if (!_connected)
+            {
+                _mainForm.PopulateConnectMenu(
+                    Transport.SerialTransport.GetPortNames(),
+                    _cachedBleDevices,
+                    _settings.UdpListenPort,
+                    _settings);
             }
         }
 
@@ -639,6 +727,38 @@ namespace RcConnector
             using var brush = new SolidBrush(color);
             g.FillEllipse(brush, 1, 1, 14, 14);
 
+            using var pen = new Pen(Color.FromArgb(80, 0, 0, 0), 1);
+            g.DrawEllipse(pen, 1, 1, 14, 14);
+
+            return Icon.FromHandle(bmp.GetHicon());
+        }
+
+        /// <summary>
+        /// Create split circle icon: left half = RC status, right half = drone status.
+        /// </summary>
+        private static Icon CreateSplitIcon(Color leftColor, Color rightColor)
+        {
+            using var bmp = new Bitmap(16, 16);
+            using var g = Graphics.FromImage(bmp);
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            g.Clear(Color.Transparent);
+
+            // Clip to circle
+            using var path = new System.Drawing.Drawing2D.GraphicsPath();
+            path.AddEllipse(1, 1, 14, 14);
+            g.SetClip(path);
+
+            // Left half (RC)
+            using var leftBrush = new SolidBrush(leftColor);
+            g.FillRectangle(leftBrush, 0, 0, 8, 16);
+
+            // Right half (drone)
+            using var rightBrush = new SolidBrush(rightColor);
+            g.FillRectangle(rightBrush, 8, 0, 8, 16);
+
+            g.ResetClip();
+
+            // Circle outline
             using var pen = new Pen(Color.FromArgb(80, 0, 0, 0), 1);
             g.DrawEllipse(pen, 1, 1, 14, 14);
 

@@ -26,11 +26,17 @@ namespace RcConnector.Core
         public int MavlinkPort { get; set; } = 14555;
         public int MavlinkSysId { get; set; } = 255;
 
+        // Serial
+        public bool SerialDtrRts { get; set; } = true;
+
         // UI
         public int WindowX { get; set; } = -1;
         public int WindowY { get; set; } = -1;
         public bool AlwaysOnTop { get; set; } = false;
         public bool AdaptiveDpi { get; set; } = true;
+        public string Language { get; set; } = "auto";
+        public bool RunAtStartup { get; set; } = false;
+        public bool FirstRunDone { get; set; } = false;
 
         public static AppSettings Load()
         {
