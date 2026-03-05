@@ -14,7 +14,7 @@ InstallDirRegKey HKLM "Software\RC-Connector" "InstallDir"
 RequestExecutionLevel admin
 
 ; --- Version info ---
-!define VERSION "0.2.3"
+!define VERSION "0.3.0"
 VIProductVersion "${VERSION}.0"
 VIAddVersionKey "ProductName" "RC-Connector"
 VIAddVersionKey "FileVersion" "${VERSION}"
