@@ -51,6 +51,8 @@ namespace RcConnector
         public event Action<string, string>? ConnectBleRequested;
         public event Action? ConnectUdpRequested;
         public event Action? DisconnectRequested;
+        public event Action? RefreshMenuRequested;
+        public event Action? BleScanRequested;
         public event Action? CheckUpdateRequested;
 
         public MainForm(AppSettings settings)
@@ -67,6 +69,7 @@ namespace RcConnector
             StartPosition = FormStartPosition.Manual;
             ShowInTaskbar = false;
             MaximizeBox = false;
+            KeyPreview = true;
 
             int formWidth = LABEL_WIDTH + BAR_WIDTH + VALUE_WIDTH + 30;
             int channelAreaHeight = CHANNEL_COUNT * (BAR_HEIGHT + BAR_SPACING) + 10;
@@ -145,6 +148,7 @@ namespace RcConnector
             };
             _btnConnect.Click += (s, e) =>
             {
+                RefreshMenuRequested?.Invoke();
                 _connectDropdown.Show(_btnConnect, new Point(0, _btnConnect.Height));
             };
 
@@ -572,6 +576,10 @@ namespace RcConnector
             }
             if (bleDevices.Count == 0)
                 bleMenu.DropDownItems.Add(new ToolStripMenuItem("—") { Enabled = false });
+            bleMenu.DropDownItems.Add(new ToolStripSeparator());
+            var refreshItem = new ToolStripMenuItem(L.Get("menu_refresh"));
+            refreshItem.Click += (s, e) => BleScanRequested?.Invoke();
+            bleMenu.DropDownItems.Add(refreshItem);
             _connectDropdown.Items.Add(bleMenu);
 
             // UDP
@@ -612,6 +620,16 @@ namespace RcConnector
             27 => "Auto_RTL",
             _ => "Mode" + mode,
         };
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == Keys.Escape && !TopMost)
+            {
+                Hide();
+                return true;
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
 
         private static void TabDrawItem(object? sender, DrawItemEventArgs e)
         {

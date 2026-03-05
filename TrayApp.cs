@@ -711,6 +711,13 @@ namespace RcConnector
             _mainForm.ConnectBleRequested += (id, name) => ConnectBle(id, name);
             _mainForm.ConnectUdpRequested += () => ConnectUdp();
             _mainForm.DisconnectRequested += () => DoDisconnect();
+            _mainForm.RefreshMenuRequested += () => UpdateMainFormToolbar();
+            _mainForm.BleScanRequested += async () =>
+            {
+                _cachedBleDevices = await BleTransport.GetPairedNusDevicesAsync();
+                Log(L.Get("log_ble_found", _cachedBleDevices.Count));
+                UpdateMainFormToolbar();
+            };
             _mainForm.CheckUpdateRequested += () => _ = CheckForUpdatesAsync();
 
             // Show cached latest version in About tab

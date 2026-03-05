@@ -14,12 +14,12 @@ InstallDirRegKey HKLM "Software\RC-Connector" "InstallDir"
 RequestExecutionLevel admin
 
 ; --- Version info ---
-!define VERSION "0.3.0"
+!define VERSION "0.3.1"
 VIProductVersion "${VERSION}.0"
 VIAddVersionKey "ProductName" "RC-Connector"
 VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "FileDescription" "RC-Connector Installer"
-VIAddVersionKey "LegalCopyright" "P Team"
+VIAddVersionKey "LegalCopyright" "@zvldz & team"
 
 ; --- UI ---
 !define MUI_ICON "Resources\app.ico"
@@ -53,8 +53,13 @@ LangString CLOSE_APP_TITLE ${LANG_UKRAINIAN} "RC-Connector запущено"
 LangString CLOSE_APP_MSG ${LANG_ENGLISH} "RC-Connector is currently running.$\nClose it to continue installation?"
 LangString CLOSE_APP_MSG ${LANG_UKRAINIAN} "RC-Connector зараз запущено.$\nЗакрити для продовження встановлення?"
 
+; Launch after install
+LangString LAUNCH_CHECKBOX ${LANG_ENGLISH} "Launch RC-Connector now"
+LangString LAUNCH_CHECKBOX ${LANG_UKRAINIAN} "Запустити RC-Connector зараз"
+
 ; --- Variables ---
 Var StartupCheckbox
+Var LaunchCheckbox
 
 ; --- Functions ---
 Function .onInit
@@ -67,11 +72,15 @@ Function StartupPage
     nsDialogs::Create 1018
     Pop $0
 
-    ${NSD_CreateCheckbox} 10 10 280 20 "$(STARTUP_CHECKBOX)"
+    ${NSD_CreateCheckbox} 10 10 300 20 "$(LAUNCH_CHECKBOX)"
+    Pop $LaunchCheckbox
+    ${NSD_Check} $LaunchCheckbox
+
+    ${NSD_CreateCheckbox} 10 40 300 20 "$(STARTUP_CHECKBOX)"
     Pop $StartupCheckbox
     ${NSD_Check} $StartupCheckbox
 
-    ${NSD_CreateLabel} 10 40 350 40 "$(STARTUP_TIP)"
+    ${NSD_CreateLabel} 10 70 350 40 "$(STARTUP_TIP)"
     Pop $0
 
     nsDialogs::Show
@@ -81,6 +90,11 @@ Function StartupPageLeave
     ${NSD_GetState} $StartupCheckbox $0
     ${If} $0 == ${BST_CHECKED}
         WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "RC-Connector" "$\"$INSTDIR\RC-Connector.exe$\""
+    ${EndIf}
+
+    ${NSD_GetState} $LaunchCheckbox $0
+    ${If} $0 == ${BST_CHECKED}
+        Exec "$\"$INSTDIR\RC-Connector.exe$\""
     ${EndIf}
 FunctionEnd
 
@@ -177,7 +191,7 @@ Section "Install"
     ; Registry (for Add/Remove Programs)
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\RC-Connector" "DisplayName" "RC-Connector"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\RC-Connector" "DisplayVersion" "${VERSION}"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\RC-Connector" "Publisher" "P Team"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\RC-Connector" "Publisher" "@zvldz & team"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\RC-Connector" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\RC-Connector" "DisplayIcon" "$INSTDIR\RC-Connector.exe"
     WriteRegStr HKLM "Software\RC-Connector" "InstallDir" "$INSTDIR"

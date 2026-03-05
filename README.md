@@ -73,6 +73,10 @@ RC-Connector operates in **passive mode**:
 
 **Important**: `SYSID_MYGCS` on the drone must match RC-Connector's System ID (default `255`, configurable in Settings).
 
+## Related
+
+ESP32 firmware: [ESP32-UART-Bridge](https://github.com/zvldz/ESP32-UART-Bridge) — RC transmitter to Serial/BLE/WiFi bridge for use with this app.
+
 ## License
 
-All rights reserved.
+MIT License — see [LICENSE](LICENSE) file for details.

@@ -6,7 +6,7 @@ namespace RcConnector.Core
     internal static class AppInfo
     {
         public const string AppName = "RC-Connector";
-        private const string DefaultAuthor = "P Team";
+        private const string DefaultAuthor = "@zvldz & team";
 
         /// <summary>
         /// Author from author.txt (next to exe) if present, otherwise "P Team".

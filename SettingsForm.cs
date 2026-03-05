@@ -182,6 +182,7 @@ namespace RcConnector
                 FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.Standard,
             };
             btnClose.Click += (s, e) => Close();
+            CancelButton = btnClose;
 
             Controls.Add(btnApply);
             Controls.Add(btnClose);
