@@ -22,14 +22,15 @@ jobs:
 
       - name: Publish self-contained
         run: >
-          dotnet publish -c Release -r win-x64
+          dotnet publish RC-Connector.csproj -c Release -r win-x64
           --self-contained
           -o publish-folder
 
+      - name: Install NSIS
+        run: choco install nsis -y
+
       - name: Build NSIS installer
-        uses: joncloud/makensis-action@v4
-        with:
-          script-file: installer.nsi
+        run: makensis installer.nsi
 
       - name: Rename installer
         run: mv RC-Connector-Setup.exe RC-Connector-${{ github.ref_name }}-Setup.exe
