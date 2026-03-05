@@ -32,11 +32,8 @@ jobs:
       - name: Build NSIS installer
         run: '& "${env:ProgramFiles(x86)}\NSIS\makensis.exe" installer.nsi'
 
-      - name: Rename installer
-        run: mv RC-Connector-Setup.exe RC-Connector-${{ github.ref_name }}-Setup.exe
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: RC-Connector-${{ github.ref_name }}-Setup.exe
+          files: RC-Connector-Setup.exe
           generate_release_notes: true
