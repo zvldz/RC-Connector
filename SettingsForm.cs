@@ -24,7 +24,6 @@ namespace RcConnector
         private readonly CheckBox _chkDtrRtsFix;
 
         // UI
-        private readonly CheckBox _chkAdaptiveDpi;
         private readonly ComboBox _cboLanguage;
         private readonly CheckBox _chkStartup;
 
@@ -39,6 +38,8 @@ namespace RcConnector
 
             AutoScaleDimensions = new SizeF(6F, 13F);
             AutoScaleMode = AutoScaleMode.Font;
+            BackColor = Theme.FormBg;
+            ForeColor = Theme.FormFg;
 
             Text = L.Get("settings_title");
             FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -57,6 +58,8 @@ namespace RcConnector
                 Location = new Point(controlX, y),
                 Width = 80,
                 Text = settings.MavlinkPort.ToString(),
+                BackColor = Theme.InputBg,
+                ForeColor = Theme.InputFg,
             };
             Controls.Add(_txtMavlinkPort);
             AddHint(L.Get("settings_mavlink_port_hint"), controlX + 85, y);
@@ -70,6 +73,8 @@ namespace RcConnector
                 Location = new Point(controlX, y),
                 Width = 50,
                 Text = settings.MavlinkSysId.ToString(),
+                BackColor = Theme.InputBg,
+                ForeColor = Theme.InputFg,
             };
             Controls.Add(_txtMavlinkSysId);
             AddHint(L.Get("settings_mavlink_sysid_hint"), controlX + 55, y);
@@ -83,6 +88,8 @@ namespace RcConnector
                 Location = new Point(controlX, y),
                 Width = 80,
                 Text = settings.UdpListenPort.ToString(),
+                BackColor = Theme.InputBg,
+                ForeColor = Theme.InputFg,
             };
             Controls.Add(_txtUdpPort);
             AddHint(L.Get("settings_udp_port_hint"), controlX + 85, y);
@@ -98,20 +105,10 @@ namespace RcConnector
                 Checked = settings.SerialDtrRts,
             };
             Controls.Add(_chkDtrRtsFix);
+            y += 15;
+            AddHint(L.Get("settings_dtr_rts_hint"), 28, y);
 
-            y += 22;
-
-            // --- Adaptive DPI ---
-            _chkAdaptiveDpi = new CheckBox
-            {
-                Text = L.Get("settings_adaptive_dpi"),
-                Location = new Point(10, y),
-                AutoSize = true,
-                Checked = settings.AdaptiveDpi,
-            };
-            Controls.Add(_chkAdaptiveDpi);
-
-            y += 22;
+            y += 24;
 
             // --- Language ---
             AddLabel(L.Get("settings_language"), 10, y);
@@ -120,7 +117,13 @@ namespace RcConnector
                 Location = new Point(controlX, y),
                 Width = 120,
                 DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = Theme.InputBg,
+                ForeColor = Theme.InputFg,
+                FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.Standard,
+                DrawMode = Theme.IsDark ? DrawMode.OwnerDrawFixed : DrawMode.Normal,
             };
+            if (Theme.IsDark)
+                _cboLanguage.DrawItem += ComboDrawItem;
             _cboLanguage.Items.Add(L.Get("settings_lang_auto"));
             _cboLanguage.Items.Add("English");
             _cboLanguage.Items.Add("Українська");
@@ -141,6 +144,7 @@ namespace RcConnector
                 Location = new Point(10, y),
                 AutoSize = true,
                 Checked = settings.RunAtStartup,
+                Enabled = AppInfo.IsInstalled,
             };
             Controls.Add(_chkStartup);
 
@@ -162,6 +166,9 @@ namespace RcConnector
                 Text = L.Get("settings_apply"),
                 Location = new Point(185, y),
                 Size = new Size(80, 24),
+                BackColor = Theme.ButtonBg,
+                ForeColor = Theme.ButtonFg,
+                FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.Standard,
             };
             btnApply.Click += OnApplyClick;
 
@@ -170,6 +177,9 @@ namespace RcConnector
                 Text = L.Get("settings_close"),
                 Location = new Point(270, y),
                 Size = new Size(80, 24),
+                BackColor = Theme.ButtonBg,
+                ForeColor = Theme.ButtonFg,
+                FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.Standard,
             };
             btnClose.Click += (s, e) => Close();
 
@@ -180,6 +190,8 @@ namespace RcConnector
 
             ResumeLayout(false);
             PerformLayout();
+
+            Theme.ApplyDarkTitleBar(this);
         }
 
         private void AddLabel(string text, int x, int y)
@@ -199,7 +211,7 @@ namespace RcConnector
                 Text = text,
                 Location = new Point(x, y + 3),
                 AutoSize = true,
-                ForeColor = Color.Gray,
+                ForeColor = Theme.HintFg,
                 Font = new Font(Font.FontFamily, 7.5f),
             });
         }
@@ -229,7 +241,7 @@ namespace RcConnector
                 UdpListenPort = int.TryParse(_txtUdpPort.Text, out int up) && up > 0 && up <= 65535
                     ? up : _settings.UdpListenPort,
                 SerialDtrRts = _chkDtrRtsFix.Checked,
-                AdaptiveDpi = _chkAdaptiveDpi.Checked,
+                AdaptiveDpi = true,
                 Language = lang,
                 RunAtStartup = _chkStartup.Checked,
 
@@ -242,6 +254,17 @@ namespace RcConnector
 
             ApplyRequested?.Invoke(newSettings);
             Close();
+        }
+
+        private static void ComboDrawItem(object? sender, DrawItemEventArgs e)
+        {
+            if (e.Index < 0 || sender is not ComboBox combo) return;
+            e.DrawBackground();
+            using var brush = new SolidBrush(
+                (e.State & DrawItemState.Selected) != 0 ? Theme.MenuHighlight : Theme.InputBg);
+            e.Graphics.FillRectangle(brush, e.Bounds);
+            TextRenderer.DrawText(e.Graphics, combo.Items[e.Index]?.ToString(),
+                e.Font, e.Bounds, Theme.InputFg, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
         }
     }
 }

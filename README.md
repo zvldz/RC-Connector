@@ -4,6 +4,10 @@ Standalone Windows tray application that bridges an RC transmitter (via ESP32) t
 
 Replaces the need for RC Override plugins in Mission Planner or QGroundControl.
 
+## Download
+
+[Latest release (installer)](https://github.com/zvldz/RC-Connector/releases/latest)
+
 ## Architecture
 
 ```
@@ -22,14 +26,17 @@ TX16S Radio ──CRSF──> ESP32 ──Serial/BLE/WiFi──> [RC-Connector] 
 - **Mini window**: 16 channel bars with real-time values, flight mode, armed status
 - **Cascading Connect menu**: select transport and device directly from tray
 - **BLE auto-scan** at startup with in-menu refresh
+- **Auto-update**: checks GitHub releases, downloads and launches installer
+- **Localization**: English and Ukrainian (auto-detected from system language)
 - **DPI-adaptive** UI scaling
-- **Settings persistence** (JSON)
+- **Settings persistence** (JSON in %LocalAppData%\RC-Connector)
+- **NSIS installer** with multilingual support (EN/UK), auto-close running instance on upgrade
 
 ## Requirements
 
 - Windows 10+ (x64)
-- .NET 8 Runtime (or use self-contained build)
 - ESP32 with compatible firmware sending `RC 1500,1500,...\n` format
+- No additional runtime required (self-contained build)
 
 ## Build
 
@@ -38,9 +45,11 @@ TX16S Radio ──CRSF──> ESP32 ──Serial/BLE/WiFi──> [RC-Connector] 
 dotnet build
 dotnet run
 
-# Self-contained single-file exe (~75 MB)
-dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
+# Self-contained publish (for NSIS installer)
+dotnet publish -c Release -r win-x64 --self-contained
 ```
+
+The GitHub Actions release workflow automatically builds the NSIS installer on tag push (`v*`).
 
 ## ESP32 Protocol
 

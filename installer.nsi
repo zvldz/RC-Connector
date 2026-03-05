@@ -9,12 +9,12 @@
 ; --- General ---
 Name "RC-Connector"
 OutFile "RC-Connector-Setup.exe"
-InstallDir "$PROGRAMFILES\RC-Connector"
+InstallDir "$PROGRAMFILES64\RC-Connector"
 InstallDirRegKey HKLM "Software\RC-Connector" "InstallDir"
 RequestExecutionLevel admin
 
 ; --- Version info ---
-!define VERSION "0.2.2"
+!define VERSION "0.2.3"
 VIProductVersion "${VERSION}.0"
 VIAddVersionKey "ProductName" "RC-Connector"
 VIAddVersionKey "FileVersion" "${VERSION}"
@@ -155,6 +155,11 @@ FunctionEnd
 Section "Install"
     ; Close running instance (with user prompt)
     Call CloseRunningInstance
+
+    ; Clean old files (upgrade: remove stale DLLs from previous version)
+    ${If} ${FileExists} "$INSTDIR\RC-Connector.exe"
+        RMDir /r "$INSTDIR"
+    ${EndIf}
 
     SetOutPath "$INSTDIR"
 

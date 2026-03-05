@@ -76,6 +76,7 @@ namespace RcConnector
             };
 
             _contextMenu = new ContextMenuStrip();
+            Theme.Apply(_contextMenu);
             _contextMenu.Items.Add(_connectMenu);
             _contextMenu.Items.Add(_disconnectItem);
             _contextMenu.Items.Add(new ToolStripSeparator());
@@ -637,7 +638,10 @@ namespace RcConnector
 
                 if (enable)
                 {
-                    string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "";
+                    // Prefer installed path from registry; fall back to current exe
+                    string exePath = GetInstalledExePath()
+                        ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName
+                        ?? "";
                     if (!string.IsNullOrEmpty(exePath))
                         key.SetValue("RC-Connector", $"\"{exePath}\"");
                 }
@@ -647,6 +651,23 @@ namespace RcConnector
                 }
             }
             catch { }
+        }
+
+        private static string? GetInstalledExePath()
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"Software\RC-Connector");
+                var installDir = key?.GetValue("InstallDir") as string;
+                if (!string.IsNullOrEmpty(installDir))
+                {
+                    string path = System.IO.Path.Combine(installDir, "RC-Connector.exe");
+                    if (System.IO.File.Exists(path))
+                        return path;
+                }
+            }
+            catch { }
+            return null;
         }
 
         // ---------------------------------------------------------------

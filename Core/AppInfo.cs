@@ -22,6 +22,10 @@ namespace RcConnector.Core
             }
         }
 
+        /// <summary>True if running from installed location (Uninstall.exe exists nearby).</summary>
+        public static bool IsInstalled { get; } =
+            System.IO.File.Exists(System.IO.Path.Combine(AppContext.BaseDirectory, "Uninstall.exe"));
+
         public static string BuildDate
         {
             get

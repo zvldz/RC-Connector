@@ -58,7 +58,9 @@ namespace RcConnector
             SuspendLayout();
 
             AutoScaleDimensions = new SizeF(6F, 13F);
-            AutoScaleMode = settings.AdaptiveDpi ? AutoScaleMode.Font : AutoScaleMode.None;
+            AutoScaleMode = AutoScaleMode.Font;
+            BackColor = Theme.FormBg;
+            ForeColor = Theme.FormFg;
 
             Text = L.Get("form_title");
             FormBorderStyle = FormBorderStyle.FixedToolWindow;
@@ -130,13 +132,16 @@ namespace RcConnector
             // --- Toolbar (connect/disconnect) ---
             int toolbarHeight = 30;
             _connectDropdown = new ContextMenuStrip();
+            Theme.Apply(_connectDropdown);
 
             _btnConnect = new Button
             {
                 Text = L.Get("menu_connect") + " \u25BC",
                 Location = new Point(2, 2),
                 Size = new Size(100, toolbarHeight - 4),
-                FlatStyle = FlatStyle.System,
+                BackColor = Theme.ButtonBg,
+                ForeColor = Theme.ButtonFg,
+                FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.System,
             };
             _btnConnect.Click += (s, e) =>
             {
@@ -149,7 +154,9 @@ namespace RcConnector
                 Location = new Point(2, 2),
                 Size = new Size(100, toolbarHeight - 4),
                 Visible = false,
-                FlatStyle = FlatStyle.System,
+                BackColor = Theme.ButtonBg,
+                ForeColor = Theme.ButtonFg,
+                FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.System,
             };
             _btnDisconnect.Click += (s, e) => DisconnectRequested?.Invoke();
 
@@ -157,7 +164,7 @@ namespace RcConnector
             {
                 Dock = DockStyle.Top,
                 Height = toolbarHeight,
-                BackColor = Color.FromArgb(220, 220, 220),
+                BackColor = Theme.PanelBg,
                 Padding = new Padding(2),
             };
             _toolbarPanel.Controls.Add(_btnConnect);
@@ -169,10 +176,13 @@ namespace RcConnector
                 Dock = DockStyle.Fill,
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
                 Appearance = TabAppearance.FlatButtons,
+                DrawMode = Theme.IsDark ? TabDrawMode.OwnerDrawFixed : TabDrawMode.Normal,
             };
+            if (Theme.IsDark)
+                _tabs.DrawItem += TabDrawItem;
 
             // Tab 1: Channels
-            var channelTab = new TabPage(L.Get("tab_channels"));
+            var channelTab = new TabPage(L.Get("tab_channels")) { BackColor = Theme.FormBg, ForeColor = Theme.FormFg };
             _channelPanel = new Panel
             {
                 Dock = DockStyle.Fill,
@@ -190,21 +200,22 @@ namespace RcConnector
                     Location = new Point(4, y),
                     Size = new Size(LABEL_WIDTH, BAR_HEIGHT),
                     TextAlign = ContentAlignment.MiddleRight,
-                    Font = new Font("Consolas", FONT_SIZE),
+                    Font = new Font("Consolas", FONT_SIZE, FontStyle.Bold),
+                    ForeColor = Theme.ChannelNumFg,
                 };
 
                 _barBgs[i] = new Panel
                 {
                     Location = new Point(LABEL_WIDTH + 6, y),
                     Size = new Size(BAR_WIDTH, BAR_HEIGHT),
-                    BackColor = Color.FromArgb(220, 220, 220),
+                    BackColor = Theme.BarBg,
                     BorderStyle = BorderStyle.FixedSingle,
                 };
                 _bars[i] = new Panel
                 {
                     Location = new Point(0, 0),
                     Size = new Size(BAR_WIDTH / 2, BAR_HEIGHT),
-                    BackColor = Color.FromArgb(60, 150, 60),
+                    BackColor = Theme.BarFg,
                 };
                 _barBgs[i].Controls.Add(_bars[i]);
 
@@ -226,21 +237,24 @@ namespace RcConnector
             _tabs.TabPages.Add(channelTab);
 
             // Tab 2: Log
-            var logTab = new TabPage(L.Get("tab_log"));
+            var logTab = new TabPage(L.Get("tab_log")) { BackColor = Theme.FormBg, ForeColor = Theme.FormFg };
             _logBox = new RichTextBox
             {
                 ReadOnly = true,
                 ScrollBars = RichTextBoxScrollBars.Vertical,
                 Dock = DockStyle.Fill,
                 Font = new Font("Consolas", LOG_FONT_SIZE),
-                BackColor = Color.FromArgb(30, 30, 30),
-                ForeColor = Color.LightGray,
+                BackColor = Theme.LogBg,
+                ForeColor = Theme.LogFg,
             };
             _clearLogButton = new Button
             {
                 Text = L.Get("btn_clear"),
                 Dock = DockStyle.Bottom,
                 Height = 24,
+                BackColor = Theme.ButtonBg,
+                ForeColor = Theme.ButtonFg,
+                FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.Standard,
             };
             _clearLogButton.Click += (s, e) => { _logBox.Clear(); _logLineCount = 0; };
 
@@ -249,7 +263,7 @@ namespace RcConnector
             _tabs.TabPages.Add(logTab);
 
             // Tab 3: About
-            var aboutTab = new TabPage(L.Get("tab_about"));
+            var aboutTab = new TabPage(L.Get("tab_about")) { BackColor = Theme.FormBg, ForeColor = Theme.FormFg };
 
             var aboutIcon = new PictureBox
             {
@@ -276,30 +290,45 @@ namespace RcConnector
                 ReadOnly = true,
                 ScrollBars = ScrollBars.None,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                BackgroundColor = aboutTab.BackColor,
+                BackgroundColor = Theme.GridBg,
+                DefaultCellStyle = new DataGridViewCellStyle { BackColor = Theme.GridBg, ForeColor = Theme.FormFg },
                 BorderStyle = BorderStyle.None,
                 CellBorderStyle = DataGridViewCellBorderStyle.Single,
-                GridColor = Color.FromArgb(200, 200, 200),
-                AlternatingRowsDefaultCellStyle = new DataGridViewCellStyle { BackColor = Color.FromArgb(245, 245, 250) },
+                GridColor = Theme.GridLine,
+                AlternatingRowsDefaultCellStyle = new DataGridViewCellStyle { BackColor = Theme.GridAltBg, ForeColor = Theme.FormFg },
                 Font = new Font("Segoe UI", FONT_SIZE),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
             };
             aboutGrid.Columns[0].DefaultCellStyle.Font = new Font("Segoe UI", FONT_SIZE, FontStyle.Bold);
-            aboutGrid.Columns[0].DefaultCellStyle.BackColor = Color.FromArgb(240, 240, 240);
-            aboutGrid.DefaultCellStyle.SelectionBackColor = aboutTab.BackColor;
-            aboutGrid.DefaultCellStyle.SelectionForeColor = aboutGrid.DefaultCellStyle.ForeColor;
+            aboutGrid.Columns[0].DefaultCellStyle.BackColor = Theme.GridHeaderBg;
+            aboutGrid.DefaultCellStyle.SelectionBackColor = Theme.GridBg;
+            aboutGrid.DefaultCellStyle.SelectionForeColor = Theme.FormFg;
             aboutGrid.Rows.Add(L.Get("about_app"), AppInfo.AppName);
             aboutGrid.Rows.Add(L.Get("about_version"), AppInfo.Version);
             int latestRowIdx = aboutGrid.Rows.Add(L.Get("about_latest"), "—");
             aboutGrid.Rows.Add(L.Get("about_build"), AppInfo.BuildDate);
             aboutGrid.Rows.Add(L.Get("about_author"), AppInfo.Author);
+            int githubRowIdx = aboutGrid.Rows.Add("GitHub", "zvldz/RC-Connector");
+            aboutGrid.Rows[githubRowIdx].Cells[1].Style.ForeColor = Theme.LinkFg;
+            aboutGrid.Rows[githubRowIdx].Cells[1].Style.Font = new Font("Segoe UI", FONT_SIZE, FontStyle.Underline);
             _latestVersionRow = aboutGrid.Rows[latestRowIdx];
+
+            aboutGrid.CellContentClick += (s, ev) =>
+            {
+                if (ev.RowIndex == githubRowIdx && ev.ColumnIndex == 1)
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                        "https://github.com/zvldz/RC-Connector") { UseShellExecute = true });
+                }
+            };
 
             var btnCheckUpdate = new Button
             {
                 Text = L.Get("about_check_update"),
                 AutoSize = true,
-                FlatStyle = FlatStyle.System,
+                BackColor = Theme.ButtonBg,
+                ForeColor = Theme.ButtonFg,
+                FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.System,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left,
             };
             btnCheckUpdate.Click += (s, ev) => CheckUpdateRequested?.Invoke();
@@ -334,6 +363,8 @@ namespace RcConnector
 
             ResumeLayout(false);
             PerformLayout();
+
+            Theme.ApplyDarkTitleBar(this);
         }
 
         /// <summary>
@@ -358,10 +389,8 @@ namespace RcConnector
 
                         // Color: red at extremes, green in normal range
                         bool extreme = channels[i] <= 810 || channels[i] >= 2190;
-                        _valueLabels[i].ForeColor = extreme ? Color.Red : Color.Black;
-                        _bars[i].BackColor = extreme
-                            ? Color.FromArgb(200, 50, 50)
-                            : Color.FromArgb(60, 150, 60);
+                        _valueLabels[i].ForeColor = extreme ? Theme.ChannelValExtremeFg : Theme.ChannelValFg;
+                        _bars[i].BackColor = extreme ? Theme.BarFgExtreme : Theme.BarFg;
                     }
                 }));
             }
@@ -447,9 +476,9 @@ namespace RcConnector
                     _logBox.AppendText(line);
                     _logBox.Select(start, line.Length);
                     _logBox.SelectionBackColor = (_logLineCount % 2 == 0)
-                        ? Color.FromArgb(30, 30, 30)
-                        : Color.FromArgb(50, 50, 58);
-                    _logBox.SelectionColor = Color.LightGray;
+                        ? Theme.LogBg
+                        : Theme.LogAltBg;
+                    _logBox.SelectionColor = Theme.LogFg;
                     _logBox.Select(_logBox.TextLength, 0);
                     _logLineCount++;
                 }));
@@ -495,8 +524,8 @@ namespace RcConnector
                         text += " \u2B06"; // ⬆ arrow
                     _latestVersionRow.Cells[1].Value = text;
                     _latestVersionRow.Cells[1].Style.ForeColor = isNewer
-                        ? Color.FromArgb(0, 140, 0)
-                        : Color.Black;
+                        ? Color.FromArgb(0, 180, 0)
+                        : Theme.FormFg;
                 }));
             }
             catch (ObjectDisposedException) { }
@@ -583,5 +612,17 @@ namespace RcConnector
             27 => "Auto_RTL",
             _ => "Mode" + mode,
         };
+
+        private static void TabDrawItem(object? sender, DrawItemEventArgs e)
+        {
+            if (sender is not TabControl tabs) return;
+            var page = tabs.TabPages[e.Index];
+            bool selected = (e.Index == tabs.SelectedIndex);
+            using var bgBrush = new SolidBrush(selected ? Theme.TabBg : Theme.FormBg);
+            e.Graphics.FillRectangle(bgBrush, e.Bounds);
+            TextRenderer.DrawText(e.Graphics, page.Text, e.Font, e.Bounds,
+                selected ? Theme.FormFg : Theme.HintFg,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        }
     }
 }
