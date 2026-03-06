@@ -37,6 +37,7 @@ namespace RcConnector.Core
         public string Language { get; set; } = "auto";
         public bool RunAtStartup { get; set; } = false;
         public bool FirstRunDone { get; set; } = false;
+        public string ThemeMode { get; set; } = "auto"; // "auto", "light", "dark"
 
         public static AppSettings Load()
         {

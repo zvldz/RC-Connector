@@ -65,10 +65,11 @@ namespace RcConnector
             ForeColor = Theme.FormFg;
 
             Text = L.Get("form_title");
-            FormBorderStyle = FormBorderStyle.FixedToolWindow;
+            FormBorderStyle = Theme.IsDark ? FormBorderStyle.FixedSingle : FormBorderStyle.FixedToolWindow;
             StartPosition = FormStartPosition.Manual;
             ShowInTaskbar = false;
             MaximizeBox = false;
+            MinimizeBox = false;
             KeyPreview = true;
 
             int formWidth = LABEL_WIDTH + BAR_WIDTH + VALUE_WIDTH + 30;
@@ -92,7 +93,7 @@ namespace RcConnector
             _statusPanel = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = STATUS_HEIGHT,
+                AutoSize = true,
                 BackColor = Color.FromArgb(40, 40, 40),
             };
 
@@ -104,8 +105,7 @@ namespace RcConnector
                 BackColor = Color.Transparent,
                 Text = L.Get("status_disconnected"),
                 TextAlign = ContentAlignment.MiddleLeft,
-                Height = STATUS_HEIGHT,
-                Padding = new Padding(4, 0, 0, 0),
+                Padding = new Padding(4, 1, 0, 1),
             };
 
             _statusArm = new Label
@@ -114,8 +114,7 @@ namespace RcConnector
                 Font = new Font("Consolas", FONT_SIZE, FontStyle.Bold),
                 Text = "",
                 TextAlign = ContentAlignment.MiddleCenter,
-                Height = STATUS_HEIGHT,
-                Padding = new Padding(4, 0, 4, 0),
+                Padding = new Padding(4, 1, 4, 1),
             };
 
             _statusMode = new Label
@@ -124,8 +123,7 @@ namespace RcConnector
                 Font = statusFont,
                 Text = "",
                 TextAlign = ContentAlignment.MiddleCenter,
-                Height = STATUS_HEIGHT,
-                Padding = new Padding(4, 0, 4, 0),
+                Padding = new Padding(4, 1, 4, 1),
             };
 
             _statusPanel.Controls.Add(_statusMode);
@@ -175,13 +173,11 @@ namespace RcConnector
             _toolbarPanel.Controls.Add(_btnDisconnect);
 
             // --- Tab control ---
-            _tabs = new TabControl
-            {
-                Dock = DockStyle.Fill,
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                Appearance = TabAppearance.FlatButtons,
-                DrawMode = Theme.IsDark ? TabDrawMode.OwnerDrawFixed : TabDrawMode.Normal,
-            };
+            _tabs = Theme.IsDark ? new BorderlessTabControl() : new TabControl();
+            _tabs.Dock = DockStyle.Fill;
+            _tabs.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
+            _tabs.Appearance = TabAppearance.FlatButtons;
+            _tabs.DrawMode = Theme.IsDark ? TabDrawMode.OwnerDrawFixed : TabDrawMode.Normal;
             if (Theme.IsDark)
                 _tabs.DrawItem += TabDrawItem;
 
@@ -311,20 +307,20 @@ namespace RcConnector
             aboutGrid.Rows.Add(L.Get("about_version"), AppInfo.Version);
             int latestRowIdx = aboutGrid.Rows.Add(L.Get("about_latest"), "—");
             aboutGrid.Rows.Add(L.Get("about_build"), AppInfo.BuildDate);
-            aboutGrid.Rows.Add(L.Get("about_author"), AppInfo.Author);
-            int githubRowIdx = aboutGrid.Rows.Add("GitHub", "zvldz/RC-Connector");
-            aboutGrid.Rows[githubRowIdx].Cells[1].Style.ForeColor = Theme.LinkFg;
-            aboutGrid.Rows[githubRowIdx].Cells[1].Style.Font = new Font("Segoe UI", FONT_SIZE, FontStyle.Underline);
+            // aboutGrid.Rows.Add(L.Get("about_author"), AppInfo.Author);
+            // int githubRowIdx = aboutGrid.Rows.Add("GitHub", "RC-Connector");
+            // aboutGrid.Rows[githubRowIdx].Cells[1].Style.ForeColor = Theme.LinkFg;
+            // aboutGrid.Rows[githubRowIdx].Cells[1].Style.Font = new Font("Segoe UI", FONT_SIZE, FontStyle.Underline);
             _latestVersionRow = aboutGrid.Rows[latestRowIdx];
 
-            aboutGrid.CellContentClick += (s, ev) =>
-            {
-                if (ev.RowIndex == githubRowIdx && ev.ColumnIndex == 1)
-                {
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
-                        "https://github.com/zvldz/RC-Connector") { UseShellExecute = true });
-                }
-            };
+            // aboutGrid.CellContentClick += (s, ev) =>
+            // {
+            //     if (ev.RowIndex == githubRowIdx && ev.ColumnIndex == 1)
+            //     {
+            //         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+            //             "https://github.com/zvldz/RC-Connector") { UseShellExecute = true });
+            //     }
+            // };
 
             var btnCheckUpdate = new Button
             {
@@ -679,5 +675,61 @@ namespace RcConnector
                 selected ? Theme.FormFg : Theme.HintFg,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         }
+    }
+
+    /// <summary>
+    /// TabControl subclass that removes the 3D border around tab pages.
+    /// </summary>
+    /// <summary>
+    /// TabControl subclass: removes 3D border and paints dark background behind tabs.
+    /// </summary>
+    internal sealed class BorderlessTabControl : TabControl
+    {
+        private const int TCM_ADJUSTRECT = 0x1328;
+        private const int WM_PAINT = 0x000F;
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == TCM_ADJUSTRECT)
+            {
+                var rc = (RECT)System.Runtime.InteropServices.Marshal.PtrToStructure(m.LParam, typeof(RECT))!;
+                rc.Left -= 4;
+                rc.Right += 4;
+                rc.Top -= 4;
+                rc.Bottom += 4;
+                System.Runtime.InteropServices.Marshal.StructureToPtr(rc, m.LParam, true);
+            }
+            base.WndProc(ref m);
+
+            // After default paint, overpaint the entire tab strip with dark background
+            if (m.Msg == WM_PAINT && TabCount > 0)
+            {
+                using var g = CreateGraphics();
+                using var bgBrush = new SolidBrush(Theme.FormBg);
+                var lastTab = GetTabRect(TabCount - 1);
+                int headerHeight = lastTab.Bottom;
+
+                // Fill entire tab header row (covers gaps between/around tabs)
+                g.FillRectangle(bgBrush, 0, 0, Width, headerHeight + 4);
+
+                // Redraw each tab on top of the dark background
+                for (int i = 0; i < TabCount; i++)
+                {
+                    var tabRect = GetTabRect(i);
+                    bool selected = (i == SelectedIndex);
+                    using var tabBrush = new SolidBrush(selected ? Theme.TabBg : Theme.FormBg);
+                    g.FillRectangle(tabBrush, tabRect);
+                    using var borderPen = new Pen(Theme.HintFg);
+                    g.DrawRectangle(borderPen, tabRect);
+                    var page = TabPages[i];
+                    TextRenderer.DrawText(g, page.Text, Font, tabRect,
+                        selected ? Theme.FormFg : Theme.HintFg,
+                        TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                }
+            }
+        }
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct RECT { public int Left, Top, Right, Bottom; }
     }
 }

@@ -11,7 +11,20 @@ namespace RcConnector.Core
     /// </summary>
     internal static class Theme
     {
-        public static bool IsDark { get; } = DetectDarkMode();
+        public static bool IsDark { get; private set; } = DetectDarkMode();
+
+        /// <summary>
+        /// Initialize theme from settings. Call once at startup before creating any forms.
+        /// </summary>
+        public static void Init(string themeMode)
+        {
+            IsDark = themeMode switch
+            {
+                "light" => false,
+                "dark" => true,
+                _ => DetectDarkMode(), // "auto"
+            };
+        }
 
         // Form backgrounds
         public static Color FormBg => IsDark ? Color.FromArgb(32, 32, 32) : SystemColors.Control;

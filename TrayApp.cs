@@ -85,7 +85,7 @@ namespace RcConnector
             _contextMenu.Items.Add(new ToolStripSeparator());
             _contextMenu.Items.Add(L.Get("menu_settings"), null, OnSettingsClick);
             _contextMenu.Items.Add(new ToolStripSeparator());
-            var aboutItem = new ToolStripMenuItem($"{AppInfo.AppName} v{AppInfo.Version}  ({AppInfo.Author})");
+            var aboutItem = new ToolStripMenuItem($"{AppInfo.AppName} v{AppInfo.Version}");
             aboutItem.Enabled = false;
             _contextMenu.Items.Add(aboutItem);
             _contextMenu.Items.Add(new ToolStripSeparator());
@@ -339,6 +339,7 @@ namespace RcConnector
                 _settings.SerialDtrRts = newSettings.SerialDtrRts;
                 _settings.AdaptiveDpi = newSettings.AdaptiveDpi;
                 _settings.Language = newSettings.Language;
+                _settings.ThemeMode = newSettings.ThemeMode;
                 _settings.RunAtStartup = newSettings.RunAtStartup;
                 SetStartupRegistry(newSettings.RunAtStartup);
 
