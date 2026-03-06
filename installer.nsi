@@ -1,10 +1,10 @@
-; RC-Connector NSIS Installer Script
+﻿; RC-Connector NSIS Installer Script
 ; Requires: publish-folder/ built first (dotnet publish without SingleFile)
 
+Unicode true
+
 !include "MUI2.nsh"
-!include "nsDialogs.nsh"
 !include "LogicLib.nsh"
-!include "WinMessages.nsh"
 
 ; --- General ---
 Name "RC-Connector"
@@ -14,7 +14,7 @@ InstallDirRegKey HKLM "Software\RC-Connector" "InstallDir"
 RequestExecutionLevel admin
 
 ; --- Version info ---
-!define VERSION "0.3.1"
+!define VERSION "0.3.2"
 VIProductVersion "${VERSION}.0"
 VIAddVersionKey "ProductName" "RC-Connector"
 VIAddVersionKey "FileVersion" "${VERSION}"
@@ -29,7 +29,15 @@ VIAddVersionKey "LegalCopyright" "@zvldz & team"
 ; --- Pages ---
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
-Page custom StartupPage StartupPageLeave
+
+; Finish page with Launch + Startup checkboxes
+!define MUI_FINISHPAGE_RUN "$INSTDIR\RC-Connector.exe"
+!define MUI_FINISHPAGE_RUN_TEXT "$(LAUNCH_CHECKBOX)"
+!define MUI_FINISHPAGE_SHOWREADME ""
+!define MUI_FINISHPAGE_SHOWREADME_TEXT "$(STARTUP_CHECKBOX)"
+!define MUI_FINISHPAGE_SHOWREADME_CHECKED
+!define MUI_FINISHPAGE_SHOWREADME_FUNCTION SetStartupRegistry
+!insertmacro MUI_PAGE_FINISH
 
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
@@ -43,13 +51,7 @@ Page custom StartupPage StartupPageLeave
 LangString STARTUP_CHECKBOX ${LANG_ENGLISH} "Run RC-Connector at Windows startup"
 LangString STARTUP_CHECKBOX ${LANG_UKRAINIAN} "Запускати RC-Connector з Windows"
 
-LangString STARTUP_TIP ${LANG_ENGLISH} "Tip: pin the RC-Connector tray icon so it is always visible.$\nRight-click taskbar $\u2192 Taskbar settings $\u2192 Select which icons appear."
-LangString STARTUP_TIP ${LANG_UKRAINIAN} "Порада: закрiпiть iконку RC-Connector на панелi завдань.$\nПКМ панель завдань $\u2192 Параметри панелi $\u2192 Виберiть iконки."
-
 ; Close running instance
-LangString CLOSE_APP_TITLE ${LANG_ENGLISH} "RC-Connector is running"
-LangString CLOSE_APP_TITLE ${LANG_UKRAINIAN} "RC-Connector запущено"
-
 LangString CLOSE_APP_MSG ${LANG_ENGLISH} "RC-Connector is currently running.$\nClose it to continue installation?"
 LangString CLOSE_APP_MSG ${LANG_UKRAINIAN} "RC-Connector зараз запущено.$\nЗакрити для продовження встановлення?"
 
@@ -57,45 +59,14 @@ LangString CLOSE_APP_MSG ${LANG_UKRAINIAN} "RC-Connector зараз запуще
 LangString LAUNCH_CHECKBOX ${LANG_ENGLISH} "Launch RC-Connector now"
 LangString LAUNCH_CHECKBOX ${LANG_UKRAINIAN} "Запустити RC-Connector зараз"
 
-; --- Variables ---
-Var StartupCheckbox
-Var LaunchCheckbox
-
 ; --- Functions ---
 Function .onInit
     ; Auto-select language based on Windows locale
     !insertmacro MUI_LANGDLL_DISPLAY
 FunctionEnd
 
-; --- Startup page ---
-Function StartupPage
-    nsDialogs::Create 1018
-    Pop $0
-
-    ${NSD_CreateCheckbox} 10 10 300 20 "$(LAUNCH_CHECKBOX)"
-    Pop $LaunchCheckbox
-    ${NSD_Check} $LaunchCheckbox
-
-    ${NSD_CreateCheckbox} 10 40 300 20 "$(STARTUP_CHECKBOX)"
-    Pop $StartupCheckbox
-    ${NSD_Check} $StartupCheckbox
-
-    ${NSD_CreateLabel} 10 70 350 40 "$(STARTUP_TIP)"
-    Pop $0
-
-    nsDialogs::Show
-FunctionEnd
-
-Function StartupPageLeave
-    ${NSD_GetState} $StartupCheckbox $0
-    ${If} $0 == ${BST_CHECKED}
-        WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "RC-Connector" "$\"$INSTDIR\RC-Connector.exe$\""
-    ${EndIf}
-
-    ${NSD_GetState} $LaunchCheckbox $0
-    ${If} $0 == ${BST_CHECKED}
-        Exec "$\"$INSTDIR\RC-Connector.exe$\""
-    ${EndIf}
+Function SetStartupRegistry
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "RC-Connector" "$\"$INSTDIR\RC-Connector.exe$\""
 FunctionEnd
 
 ; --- Close running instance ---

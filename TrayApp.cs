@@ -219,7 +219,12 @@ namespace RcConnector
             bool hasRcData = _lastRcData != DateTime.MinValue &&
                              (now - _lastRcData).TotalMilliseconds <= LED_TIMEOUT_MS;
 
-            if (!_connected && !bleAuthFailed)
+            if (!_connected && !bleAuthFailed && _mavlink.DroneConnected)
+            {
+                tooltip = L.Get("tip_disconnected_drone_ok");
+                UpdateTrayIcon(Color.Gray, Color.LimeGreen, tooltip);
+            }
+            else if (!_connected && !bleAuthFailed)
             {
                 tooltip = L.Get("tip_disconnected");
                 UpdateTrayIcon(Color.Gray, tooltip);
@@ -255,7 +260,7 @@ namespace RcConnector
             else
             {
                 tooltip = L.Get("tip_connected_no_data");
-                UpdateTrayIcon(Color.Orange, tooltip);
+                UpdateTrayIcon(Color.OrangeRed, tooltip);
             }
 
             // Update main form status
@@ -263,6 +268,7 @@ namespace RcConnector
                 _connected,
                 _transport?.DisplayName ?? "",
                 DataRateHz,
+                hasRcData,
                 _mavlink.DroneConnected,
                 _mavlink.DroneArmed,
                 _mavlink.DroneCustomMode);
@@ -430,27 +436,6 @@ namespace RcConnector
 
             _connectMenu.DropDownItems.Clear();
 
-            // --- COM submenu ---
-            var comMenu = new ToolStripMenuItem("COM");
-            var ports = SerialTransport.GetPortNames();
-            if (ports.Length == 0)
-            {
-                comMenu.DropDownItems.Add(new ToolStripMenuItem(L.Get("menu_no_ports")) { Enabled = false });
-            }
-            else
-            {
-                foreach (var port in ports)
-                {
-                    var item = new ToolStripMenuItem(port);
-                    if (port == _settings.ComPort)
-                        item.Font = new Font(item.Font, FontStyle.Bold);
-                    string p = port; // capture
-                    item.Click += (s, e) => ConnectSerial(p);
-                    comMenu.DropDownItems.Add(item);
-                }
-            }
-            _connectMenu.DropDownItems.Add(comMenu);
-
             // --- BLE submenu ---
             var bleMenu = new ToolStripMenuItem("BLE");
             bleMenu.DropDown.Closing += (s, e) =>
@@ -507,6 +492,27 @@ namespace RcConnector
             };
             bleMenu.DropDownItems.Add(refreshItem);
             _connectMenu.DropDownItems.Add(bleMenu);
+
+            // --- COM submenu ---
+            var comMenu = new ToolStripMenuItem("COM");
+            var ports = SerialTransport.GetPortNames();
+            if (ports.Length == 0)
+            {
+                comMenu.DropDownItems.Add(new ToolStripMenuItem(L.Get("menu_no_ports")) { Enabled = false });
+            }
+            else
+            {
+                foreach (var port in ports)
+                {
+                    var item = new ToolStripMenuItem(port);
+                    if (port == _settings.ComPort)
+                        item.Font = new Font(item.Font, FontStyle.Bold);
+                    string p = port; // capture
+                    item.Click += (s, e) => ConnectSerial(p);
+                    comMenu.DropDownItems.Add(item);
+                }
+            }
+            _connectMenu.DropDownItems.Add(comMenu);
 
             // --- UDP ---
             var udpItem = new ToolStripMenuItem($"UDP :{_settings.UdpListenPort}");

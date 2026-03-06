@@ -7,9 +7,9 @@
     <ApplicationIcon>Resources\app.ico</ApplicationIcon>
     <AssemblyName>RC-Connector</AssemblyName>
     <RootNamespace>RcConnector</RootNamespace>
-    <Version>0.3.1</Version>
+    <Version>0.3.2</Version>
     <Nullable>enable</Nullable>
-    <Copyright>P Team</Copyright>
+    <Copyright>@zvldz &amp; team</Copyright>
 
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>

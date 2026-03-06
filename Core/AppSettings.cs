@@ -40,20 +40,39 @@ namespace RcConnector.Core
 
         public static AppSettings Load()
         {
+            AppSettings settings;
             try
             {
                 if (File.Exists(SettingsPath))
                 {
                     string json = File.ReadAllText(SettingsPath);
-                    return JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+                    settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+                }
+                else
+                {
+                    settings = new AppSettings();
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine("[Settings] Load failed: " + ex.Message);
+                settings = new AppSettings();
             }
 
-            return new AppSettings();
+            // Sync RunAtStartup with actual registry state
+            settings.RunAtStartup = IsStartupRegistrySet();
+            return settings;
+        }
+
+        private static bool IsStartupRegistrySet()
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                    @"Software\Microsoft\Windows\CurrentVersion\Run", false);
+                return key?.GetValue("RC-Connector") != null;
+            }
+            catch { return false; }
         }
 
         public void Save()

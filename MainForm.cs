@@ -98,13 +98,13 @@ namespace RcConnector
 
             _statusTransport = new Label
             {
-                AutoSize = false,
+                AutoSize = true,
                 Font = statusFont,
                 ForeColor = Color.LightGray,
                 BackColor = Color.Transparent,
                 Text = L.Get("status_disconnected"),
                 TextAlign = ContentAlignment.MiddleLeft,
-                Dock = DockStyle.Fill,
+                Height = STATUS_HEIGHT,
                 Padding = new Padding(4, 0, 0, 0),
             };
 
@@ -155,7 +155,7 @@ namespace RcConnector
             _btnDisconnect = new Button
             {
                 Text = L.Get("menu_disconnect"),
-                Location = new Point(2, 2),
+                Location = new Point(104, 2),
                 Size = new Size(100, toolbarHeight - 4),
                 Visible = false,
                 BackColor = Theme.ButtonBg,
@@ -405,7 +405,7 @@ namespace RcConnector
         /// Update status bar text. Thread-safe.
         /// </summary>
         public void UpdateStatus(bool connected, string transportName, float hz,
-            bool droneConnected, bool armed, uint customMode)
+            bool hasRcData, bool droneConnected, bool armed, uint customMode)
         {
             if (IsDisposed || !IsHandleCreated)
                 return;
@@ -414,23 +414,30 @@ namespace RcConnector
             {
                 BeginInvoke(new Action(() =>
                 {
+                    // Reset transport label to default (non-badge) style
+                    _statusTransport.ForeColor = Color.LightGray;
+                    _statusTransport.BackColor = Color.Transparent;
+
                     if (!connected)
                     {
-                        _statusTransport.Text = L.Get("status_disconnected");
+                        _statusTransport.Text = $" {L.Get("status_disconnected")} ";
+                        _statusTransport.ForeColor = Color.White;
+                        _statusTransport.BackColor = Color.FromArgb(90, 90, 90);
                         _statusPanel.BackColor = Color.FromArgb(40, 40, 40);
                         _statusArm.Text = "";
-                        _statusMode.Text = "";
+                        if (droneConnected)
+                        {
+                            _statusMode.Text = $" {L.Get("status_no_rc")} ";
+                            _statusMode.ForeColor = Color.White;
+                            _statusMode.BackColor = Color.FromArgb(160, 80, 20);
+                        }
+                        else
+                        {
+                            _statusMode.Text = "";
+                            _statusMode.BackColor = Color.Transparent;
+                        }
                     }
-                    else if (!droneConnected)
-                    {
-                        _statusTransport.Text = $"{transportName} {hz:0}Hz";
-                        _statusPanel.BackColor = Color.FromArgb(80, 60, 20);
-                        _statusArm.Text = "";
-                        _statusMode.Text = L.Get("status_no_drone");
-                        _statusMode.ForeColor = Color.Orange;
-                        _statusMode.BackColor = Color.Transparent;
-                    }
-                    else
+                    else if (hasRcData && droneConnected)
                     {
                         _statusTransport.Text = $"{transportName} {hz:0}Hz";
                         _statusPanel.BackColor = Color.FromArgb(40, 40, 40);
@@ -447,6 +454,38 @@ namespace RcConnector
                         _statusMode.Text = $" {modeName} ";
                         _statusMode.ForeColor = Color.White;
                         _statusMode.BackColor = Color.FromArgb(50, 80, 140);
+                    }
+                    else if (hasRcData && !droneConnected)
+                    {
+                        _statusTransport.Text = $"{transportName} {hz:0}Hz";
+                        _statusPanel.BackColor = Color.FromArgb(80, 60, 20);
+                        _statusArm.Text = "";
+                        _statusMode.Text = $" {L.Get("status_no_telemetry")} ";
+                        _statusMode.ForeColor = Color.White;
+                        _statusMode.BackColor = Color.FromArgb(160, 80, 20);
+                    }
+                    else if (!hasRcData && droneConnected)
+                    {
+                        _statusTransport.Text = $"{transportName}";
+                        _statusPanel.BackColor = Color.FromArgb(80, 60, 20);
+                        _statusArm.Text = armed ? L.Get("status_armed") : L.Get("status_disarmed");
+                        _statusArm.ForeColor = Color.White;
+                        _statusArm.BackColor = armed
+                            ? Color.FromArgb(180, 40, 40)
+                            : Color.FromArgb(40, 120, 40);
+                        string modeName = DecodeCopterMode(customMode);
+                        _statusMode.Text = $" {modeName} ";
+                        _statusMode.ForeColor = Color.White;
+                        _statusMode.BackColor = Color.FromArgb(50, 80, 140);
+                    }
+                    else
+                    {
+                        _statusTransport.Text = $"{transportName}";
+                        _statusPanel.BackColor = Color.FromArgb(80, 40, 20);
+                        _statusArm.Text = "";
+                        _statusMode.Text = $" {L.Get("status_no_telemetry")} ";
+                        _statusMode.ForeColor = Color.White;
+                        _statusMode.BackColor = Color.FromArgb(160, 80, 20);
                     }
 
                     // Layout labels left to right
@@ -502,10 +541,8 @@ namespace RcConnector
             {
                 BeginInvoke(new Action(() =>
                 {
-                    _btnConnect.Visible = !connected;
+                    _btnConnect.Visible = true;
                     _btnDisconnect.Visible = connected;
-                    if (connected)
-                        _btnDisconnect.Text = L.Get("menu_disconnect") + " (" + transportName + ")";
                 }));
             }
             catch (ObjectDisposedException) { }
@@ -543,6 +580,25 @@ namespace RcConnector
         {
             _connectDropdown.Items.Clear();
 
+            // BLE devices
+            var bleMenu = new ToolStripMenuItem("BLE");
+            foreach (var (id, name) in bleDevices)
+            {
+                var item = new ToolStripMenuItem(name);
+                if (id == settings.BleDeviceId)
+                    item.Font = new Font(item.Font, FontStyle.Bold);
+                string devId = id, devName = name;
+                item.Click += (s, e) => ConnectBleRequested?.Invoke(devId, devName);
+                bleMenu.DropDownItems.Add(item);
+            }
+            if (bleDevices.Count == 0)
+                bleMenu.DropDownItems.Add(new ToolStripMenuItem("—") { Enabled = false });
+            bleMenu.DropDownItems.Add(new ToolStripSeparator());
+            var refreshItem = new ToolStripMenuItem(L.Get("menu_refresh"));
+            refreshItem.Click += (s, e) => BleScanRequested?.Invoke();
+            bleMenu.DropDownItems.Add(refreshItem);
+            _connectDropdown.Items.Add(bleMenu);
+
             // COM ports
             var comMenu = new ToolStripMenuItem("COM");
             if (comPorts.Length == 0)
@@ -562,25 +618,6 @@ namespace RcConnector
                 }
             }
             _connectDropdown.Items.Add(comMenu);
-
-            // BLE devices
-            var bleMenu = new ToolStripMenuItem("BLE");
-            foreach (var (id, name) in bleDevices)
-            {
-                var item = new ToolStripMenuItem(name);
-                if (id == settings.BleDeviceId)
-                    item.Font = new Font(item.Font, FontStyle.Bold);
-                string devId = id, devName = name;
-                item.Click += (s, e) => ConnectBleRequested?.Invoke(devId, devName);
-                bleMenu.DropDownItems.Add(item);
-            }
-            if (bleDevices.Count == 0)
-                bleMenu.DropDownItems.Add(new ToolStripMenuItem("—") { Enabled = false });
-            bleMenu.DropDownItems.Add(new ToolStripSeparator());
-            var refreshItem = new ToolStripMenuItem(L.Get("menu_refresh"));
-            refreshItem.Click += (s, e) => BleScanRequested?.Invoke();
-            bleMenu.DropDownItems.Add(refreshItem);
-            _connectDropdown.Items.Add(bleMenu);
 
             // UDP
             var udpItem = new ToolStripMenuItem($"UDP :{udpPort}");

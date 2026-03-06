@@ -29,6 +29,7 @@ namespace RcConnector.Core
 
             // Tray tooltips
             ["tip_disconnected"] = "RC-Connector: Disconnected",
+            ["tip_disconnected_drone_ok"] = "RC-Connector: Disconnected, drone OK",
             ["tip_ble_auth_failed"] = "RC-Connector: BLE auth failed. Re-pair device.",
             ["tip_connecting"] = "RC-Connector: Connecting...",
             ["tip_ok"] = "RC-Connector: OK {0}Hz",
@@ -57,6 +58,8 @@ namespace RcConnector.Core
             // MainForm
             ["form_title"] = "RC-Connector",
             ["status_disconnected"] = "Disconnected",
+            ["status_no_telemetry"] = "No telemetry",
+            ["status_no_rc"] = "No RC data",
             ["status_no_drone"] = "No drone",
             ["status_armed"] = " ARMED ",
             ["status_disarmed"] = " DISARMED ",
@@ -118,6 +121,7 @@ namespace RcConnector.Core
 
             // Tray tooltips
             ["tip_disconnected"] = "RC-Connector: Від'єднано",
+            ["tip_disconnected_drone_ok"] = "RC-Connector: Від'єднано, дрон OK",
             ["tip_ble_auth_failed"] = "RC-Connector: Помилка BLE авторизації. Перепаруйте пристрій.",
             ["tip_connecting"] = "RC-Connector: З'єднання...",
             ["tip_ok"] = "RC-Connector: OK {0}Hz",
@@ -146,6 +150,8 @@ namespace RcConnector.Core
             // MainForm
             ["form_title"] = "RC-Connector",
             ["status_disconnected"] = "Від'єднано",
+            ["status_no_telemetry"] = "Немає телеметрії",
+            ["status_no_rc"] = "Немає RC даних",
             ["status_no_drone"] = "Немає дрона",
             ["status_armed"] = " ARMED ",
             ["status_disarmed"] = " DISARMED ",

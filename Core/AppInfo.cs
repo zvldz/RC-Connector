@@ -9,7 +9,7 @@ namespace RcConnector.Core
         private const string DefaultAuthor = "@zvldz & team";
 
         /// <summary>
-        /// Author from author.txt (next to exe) if present, otherwise "P Team".
+        /// Author from author.txt (next to exe) if present, otherwise default.
         /// </summary>
         public static string Author { get; } = LoadAuthor();
 
