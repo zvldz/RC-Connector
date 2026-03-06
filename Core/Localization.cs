@@ -77,7 +77,7 @@ namespace RcConnector.Core
             // SettingsForm
             ["settings_title"] = "RC-Connector Settings",
             ["settings_mavlink_port"] = "MAVLink port:",
-            ["settings_mavlink_port_hint"] = "\u26A0 avoid 14550 (GCS default)",
+            ["settings_mavlink_port_hint"] = "\u26A0 not 14550 (GCS default)",
             ["settings_mavlink_sysid"] = "MAVLink sysid:",
             ["settings_mavlink_sysid_hint"] = "\u26A0 must match SYSID_MYGCS",
             ["settings_udp_port"] = "UDP ESP port:",
@@ -88,6 +88,11 @@ namespace RcConnector.Core
             ["settings_language"] = "Language:",
             ["settings_lang_auto"] = "Auto",
             ["settings_startup"] = "Run at Windows startup",
+            ["settings_theme"] = "Theme:",
+            ["settings_theme_auto"] = "Auto",
+            ["settings_theme_light"] = "Light",
+            ["settings_theme_dark"] = "Dark",
+            ["settings_theme_hint"] = "Restart app to apply",
             ["settings_apply"] = "Apply",
             ["settings_close"] = "Close",
 
@@ -180,6 +185,11 @@ namespace RcConnector.Core
             ["settings_language"] = "Мова:",
             ["settings_lang_auto"] = "Авто",
             ["settings_startup"] = "Запускати з Windows",
+            ["settings_theme"] = "Тема:",
+            ["settings_theme_auto"] = "Авто",
+            ["settings_theme_light"] = "Світла",
+            ["settings_theme_dark"] = "Темна",
+            ["settings_theme_hint"] = "Перезапустіть для застосування",
             ["settings_apply"] = "Застосувати",
             ["settings_close"] = "Закрити",
 

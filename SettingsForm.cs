@@ -25,6 +25,8 @@ namespace RcConnector
 
         // UI
         private readonly ComboBox _cboLanguage;
+        private readonly ComboBox _cboTheme;
+        private readonly Label _lblThemeHint;
         private readonly CheckBox _chkStartup;
 
         /// <summary>Fired when user clicks Apply with new settings.</summary>
@@ -137,6 +139,49 @@ namespace RcConnector
 
             y += 26;
 
+            // --- Theme ---
+            AddLabel(L.Get("settings_theme"), 10, y);
+            _cboTheme = new ComboBox
+            {
+                Location = new Point(controlX, y),
+                Width = 120,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = Theme.InputBg,
+                ForeColor = Theme.InputFg,
+                FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.Standard,
+                DrawMode = Theme.IsDark ? DrawMode.OwnerDrawFixed : DrawMode.Normal,
+            };
+            if (Theme.IsDark)
+                _cboTheme.DrawItem += ComboDrawItem;
+            _cboTheme.Items.Add(L.Get("settings_theme_auto"));
+            _cboTheme.Items.Add(L.Get("settings_theme_light"));
+            _cboTheme.Items.Add(L.Get("settings_theme_dark"));
+            _cboTheme.SelectedIndex = settings.ThemeMode switch
+            {
+                "light" => 1,
+                "dark" => 2,
+                _ => 0,
+            };
+
+            _lblThemeHint = new Label
+            {
+                Text = "\u2139 " + L.Get("settings_theme_hint"),
+                Location = new Point(controlX + 125, y + 3),
+                AutoSize = true,
+                ForeColor = Theme.HintFg,
+                Font = new Font(Font.FontFamily, 7.5f),
+                Visible = false,
+            };
+            _cboTheme.SelectedIndexChanged += (s, e) =>
+            {
+                string selected = _cboTheme.SelectedIndex switch { 1 => "light", 2 => "dark", _ => "auto" };
+                _lblThemeHint.Visible = selected != settings.ThemeMode;
+            };
+            Controls.Add(_cboTheme);
+            Controls.Add(_lblThemeHint);
+
+            y += 26;
+
             // --- Run at startup ---
             _chkStartup = new CheckBox
             {
@@ -244,6 +289,7 @@ namespace RcConnector
                 SerialDtrRts = _chkDtrRtsFix.Checked,
                 AdaptiveDpi = true,
                 Language = lang,
+                ThemeMode = _cboTheme.SelectedIndex switch { 1 => "light", 2 => "dark", _ => "auto" },
                 RunAtStartup = _chkStartup.Checked,
 
                 // Preserve UI state
