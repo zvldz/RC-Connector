@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.4.0 — 2026-03-07
+
+### Joystick Transport
+- USB joystick/gamepad support via winmm.dll P/Invoke (joyGetPosEx)
+- Joystick device selection in tray Connect submenu and MainForm toolbar
+- Configurable poll rate (10-50 Hz) in Settings
+
+### Joystick Channel Mapping
+- Separate mapping editor window (JoystickMappingForm)
+- 8 RC channels, each assignable to: None / Axis (X-V) / Button Group
+- Axis invert option per channel
+- Button groups: N buttons → N+1 PWM positions (1000-2000), auto-distributed
+- Live PWM preview with joystick connected (10 Hz refresh)
+- Device selector for multi-joystick setups
+- PWM bar visualization with center mark and button position markers
+- Defaults button to reset mapping (axes X-V on CH1-6)
+- Unmapped channels send 0 (MAVLink passthrough)
+- Accessible from tray menu and MainForm gamepad button
+
+### Status Bar
+- Transport name and Hz displayed as separate colored badges
+- Transport badge: green (connected), orange (no RC data)
+- Hz badge: blue, shown only when RC data present
+- Flicker-free badge updates (SuspendLayout + conditional property sets)
+
+### UI
+- Gamepad button (🎮) in MainForm toolbar, docked right
+
 ## 0.3.3 — 2026-03-06
 
 ### Settings

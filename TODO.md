@@ -6,11 +6,12 @@ Windows tray app: ESP32 (Serial/BLE/UDP) → MAVLink RC_CHANNELS_OVERRIDE → Dr
 C# / .NET 8 / WinForms. Localization: EN + UK.
 
 All core features implemented:
-- Serial, BLE, UDP transports
+- Serial, BLE, UDP, Joystick transports
 - MAVLink heartbeat + RC override
 - Tray icon with color-coded status
 - MainForm: channel bars, log, about, connect toolbar
 - SettingsForm: MAVLink/UI settings
+- JoystickMappingForm: 8-channel mapping (axis/buttons), live PWM preview
 - DPI scaling (AutoScaleMode.Font)
 - NSIS installer, GitHub Actions release workflow
 
@@ -20,18 +21,14 @@ All core features implemented:
 - [ ] SignPath.io — бесплатный code signing для OSS. Подать заявку, интегрировать в GitHub Actions. Убирает SmartScreen предупреждения при скачивании/установке.
 
 ### Normal
-- [ ] USB Joystick transport — пульт по USB как геймпад (winmm.dll joyGetPosEx), оси → RC каналы 1000-2000. Без ESP32, напрямую с компа.
-  - P/Invoke: joyGetNumDevs, joyGetDevCapsW, joyGetPosEx
-  - 6 осей (X/Y/Z/R/U/V) → CH1-CH6, каналы 7-8 = 1500 (центр). Фиксированный маппинг для MVP.
-  - Polling rate: 10Hz (100ms) — совпадает с типичным ESP32 rate, не перегружает MAVLink канал.
-  - Rate limit: предусмотреть настраиваемый интервал (10-50Hz), по умолчанию 10Hz.
-  - Deadzone ~5% около центра осей (шум джойстика).
-  - Hot-plug: joyGetPosEx возвращает ошибку при отключении → обрабатываем как disconnect.
-  - Каналы 9-16 = 1500 (центр) для совместимости с 16-канальным форматом.
-  - Потом: настраиваемый маппинг осей → каналов в Settings.
 - [ ] Real-world testing with ESP32 hardware and drone
+- [ ] Joystick: POV hat support (dwPOV → channel mapping)
+- [ ] Joystick: per-device mapping profiles (different mapping for different joysticks)
 
 ### Done
+- [x] USB Joystick transport (winmm.dll, configurable poll rate, hot-plug detection)
+- [x] Joystick channel mapping (8 CH, axis/buttons, invert, live PWM preview)
+- [x] Status badges: separate transport name + Hz badges, flicker-free
 - [x] Test UI on Full HD (100% DPI)
 - [x] Auto-update check via GitHub releases API
 - [x] Dark/light theme support (Theme.cs)
@@ -52,8 +49,10 @@ All core features implemented:
 |------|------|
 | TrayApp.cs | Tray icon, context menu, connect/disconnect logic |
 | MainForm.cs | Channel bars, status, log, connect toolbar |
-| SettingsForm.cs | MAVLink port/sysid, UDP port, DPI, language |
-| Transport/*.cs | Serial (DTR fix), BLE (NUS), UDP |
+| SettingsForm.cs | MAVLink port/sysid, UDP port, joystick rate, language |
+| JoystickMappingForm.cs | Joystick channel mapping editor, live PWM preview |
+| Transport/*.cs | Serial (DTR fix), BLE (NUS), UDP, Joystick (winmm) |
+| Core/JoystickMapping.cs | Channel mapping model (axis/buttons/invert) |
 | MAVLink/MavlinkService.cs | Heartbeat + RC override sender/receiver |
 | Core/Localization.cs | EN/UK strings via L.Get("key") |
 | Core/AppSettings.cs | JSON settings in %LocalAppData%/RC-Connector |

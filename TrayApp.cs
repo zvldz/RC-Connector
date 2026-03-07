@@ -83,6 +83,7 @@ namespace RcConnector
             _contextMenu.Items.Add(_showItem);
             _contextMenu.Items.Add(_alwaysOnTopItem);
             _contextMenu.Items.Add(new ToolStripSeparator());
+            _contextMenu.Items.Add(L.Get("menu_joystick_mapping"), null, OnJoystickMappingClick);
             _contextMenu.Items.Add(L.Get("menu_settings"), null, OnSettingsClick);
             _contextMenu.Items.Add(new ToolStripSeparator());
             var aboutItem = new ToolStripMenuItem($"{AppInfo.AppName} v{AppInfo.Version}");
@@ -316,6 +317,25 @@ namespace RcConnector
         }
 
         private SettingsForm? _settingsForm;
+        private JoystickMappingForm? _joystickMappingForm;
+
+        private void OnJoystickMappingClick(object? sender, EventArgs e)
+        {
+            if (_joystickMappingForm != null && !_joystickMappingForm.IsDisposed)
+            {
+                _joystickMappingForm.BringToFront();
+                return;
+            }
+
+            _joystickMappingForm = new JoystickMappingForm(_settings.JoystickMapping, _settings.JoystickDeviceId);
+            _joystickMappingForm.ApplyRequested += (newMapping) =>
+            {
+                _settings.JoystickMapping = newMapping;
+                _settings.Save();
+                Log(L.Get("log_settings_updated"));
+            };
+            _joystickMappingForm.Show();
+        }
 
         private void OnSettingsClick(object? sender, EventArgs e)
         {
@@ -336,6 +356,7 @@ namespace RcConnector
                 _settings.UdpListenPort = newSettings.UdpListenPort;
                 _settings.MavlinkPort = newSettings.MavlinkPort;
                 _settings.MavlinkSysId = newSettings.MavlinkSysId;
+                _settings.JoystickPollHz = newSettings.JoystickPollHz;
                 _settings.SerialDtrRts = newSettings.SerialDtrRts;
                 _settings.AdaptiveDpi = newSettings.AdaptiveDpi;
                 _settings.Language = newSettings.Language;
@@ -519,6 +540,27 @@ namespace RcConnector
             var udpItem = new ToolStripMenuItem($"UDP :{_settings.UdpListenPort}");
             udpItem.Click += (s, e) => ConnectUdp();
             _connectMenu.DropDownItems.Add(udpItem);
+
+            // --- Joystick submenu ---
+            var joyMenu = new ToolStripMenuItem("Joystick");
+            var joysticks = JoystickTransport.ListDevices();
+            if (joysticks.Length == 0)
+            {
+                joyMenu.DropDownItems.Add(new ToolStripMenuItem(L.Get("menu_no_joysticks")) { Enabled = false });
+            }
+            else
+            {
+                foreach (var (id, name) in joysticks)
+                {
+                    var item = new ToolStripMenuItem(name);
+                    if (id == _settings.JoystickDeviceId)
+                        item.Font = new Font(item.Font, FontStyle.Bold);
+                    int devId = id; string devName = name; // capture
+                    item.Click += (s, e) => ConnectJoystick(devId, devName);
+                    joyMenu.DropDownItems.Add(item);
+                }
+            }
+            _connectMenu.DropDownItems.Add(joyMenu);
         }
 
         // ---------------------------------------------------------------
@@ -596,6 +638,33 @@ namespace RcConnector
                 _settings.Save();
 
                 Log(L.Get("log_listening_udp", port));
+                UpdateMainFormToolbar();
+            }
+            catch (Exception ex)
+            {
+                Log(L.Get("log_connect_failed", ex.Message));
+                _connected = false;
+                UpdateMainFormToolbar();
+            }
+        }
+
+        private void ConnectJoystick(int deviceId, string deviceName)
+        {
+            try
+            {
+                _transport?.Dispose();
+                int pollMs = 1000 / Math.Clamp(_settings.JoystickPollHz, 10, 50);
+                var joy = new JoystickTransport(deviceId, deviceName, pollMs, _settings.JoystickMapping);
+                WireTransport(joy);
+                _transport = joy;
+                _transport.Connect();
+
+                _connected = true;
+                _settings.SourceMode = SourceMode.Joystick;
+                _settings.JoystickDeviceId = deviceId;
+                _settings.Save();
+
+                Log(L.Get("log_joystick_connected", deviceName));
                 UpdateMainFormToolbar();
             }
             catch (Exception ex)
@@ -717,6 +786,8 @@ namespace RcConnector
             _mainForm.ConnectSerialRequested += port => ConnectSerial(port);
             _mainForm.ConnectBleRequested += (id, name) => ConnectBle(id, name);
             _mainForm.ConnectUdpRequested += () => ConnectUdp();
+            _mainForm.ConnectJoystickRequested += (id, name) => ConnectJoystick(id, name);
+            _mainForm.JoystickMappingRequested += () => OnJoystickMappingClick(null, EventArgs.Empty);
             _mainForm.DisconnectRequested += () => DoDisconnect();
             _mainForm.RefreshMenuRequested += () => UpdateMainFormToolbar();
             _mainForm.BleScanRequested += async () =>

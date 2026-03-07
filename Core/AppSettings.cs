@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace RcConnector.Core
 {
-    internal enum SourceMode { COM, BLE, UDP }
+    internal enum SourceMode { COM, BLE, UDP, Joystick }
 
     internal sealed class AppSettings
     {
@@ -21,6 +21,9 @@ namespace RcConnector.Core
         public int UdpListenPort { get; set; } = 14552;
         public string? BleDeviceId { get; set; }
         public string? BleDeviceName { get; set; }
+        public int JoystickDeviceId { get; set; } = -1;
+        public int JoystickPollHz { get; set; } = 10; // 1-50 Hz
+        public JoystickMapping JoystickMapping { get; set; } = new();
 
         // MAVLink output (listen port — replies to sender address)
         public int MavlinkPort { get; set; } = 14555;

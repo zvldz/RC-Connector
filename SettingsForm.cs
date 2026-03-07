@@ -20,6 +20,9 @@ namespace RcConnector
         // UDP ESP source
         private readonly TextBox _txtUdpPort;
 
+        // Joystick
+        private readonly ComboBox _cboJoystickRate;
+
         // Serial
         private readonly CheckBox _chkDtrRtsFix;
 
@@ -95,6 +98,33 @@ namespace RcConnector
             };
             Controls.Add(_txtUdpPort);
             AddHint(L.Get("settings_udp_port_hint"), controlX + 85, y);
+
+            y += 26;
+
+            // --- Joystick poll rate ---
+            AddLabel(L.Get("settings_joystick_rate"), 10, y);
+            _cboJoystickRate = new ComboBox
+            {
+                Location = new Point(controlX, y),
+                Width = 60,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = Theme.InputBg,
+                ForeColor = Theme.InputFg,
+                FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.Standard,
+                DrawMode = Theme.IsDark ? DrawMode.OwnerDrawFixed : DrawMode.Normal,
+            };
+            if (Theme.IsDark)
+                _cboJoystickRate.DrawItem += ComboDrawItem;
+            int[] rates = { 10, 20, 30, 40, 50 };
+            int selectedIdx = 0;
+            for (int i = 0; i < rates.Length; i++)
+            {
+                _cboJoystickRate.Items.Add(rates[i].ToString());
+                if (rates[i] == settings.JoystickPollHz)
+                    selectedIdx = i;
+            }
+            _cboJoystickRate.SelectedIndex = selectedIdx;
+            Controls.Add(_cboJoystickRate);
 
             y += 28;
 
@@ -278,6 +308,7 @@ namespace RcConnector
                 ComPort = _settings.ComPort,
                 BleDeviceId = _settings.BleDeviceId,
                 BleDeviceName = _settings.BleDeviceName,
+                JoystickDeviceId = _settings.JoystickDeviceId,
 
                 // Editable settings
                 MavlinkPort = int.TryParse(_txtMavlinkPort.Text, out int mp) && mp > 0 && mp <= 65535
@@ -286,6 +317,7 @@ namespace RcConnector
                     ? sid : _settings.MavlinkSysId,
                 UdpListenPort = int.TryParse(_txtUdpPort.Text, out int up) && up > 0 && up <= 65535
                     ? up : _settings.UdpListenPort,
+                JoystickPollHz = int.TryParse(_cboJoystickRate.SelectedItem?.ToString(), out int jph) ? jph : 10,
                 SerialDtrRts = _chkDtrRtsFix.Checked,
                 AdaptiveDpi = true,
                 Language = lang,

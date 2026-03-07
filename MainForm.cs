@@ -33,6 +33,7 @@ namespace RcConnector
         private readonly Label[] _valueLabels = new Label[CHANNEL_COUNT];
         private readonly Panel _statusPanel;
         private readonly Label _statusTransport;
+        private readonly Label _statusHz;
         private readonly Label _statusArm;
         private readonly Label _statusMode;
         private readonly RichTextBox _logBox;
@@ -44,16 +45,19 @@ namespace RcConnector
         private readonly Panel _toolbarPanel;
         private readonly Button _btnConnect;
         private readonly Button _btnDisconnect;
+        private readonly Button _btnJoyMapping;
         private readonly ContextMenuStrip _connectDropdown;
 
         /// <summary>Events for connect/disconnect actions.</summary>
         public event Action<string>? ConnectSerialRequested;
         public event Action<string, string>? ConnectBleRequested;
         public event Action? ConnectUdpRequested;
+        public event Action<int, string>? ConnectJoystickRequested;
         public event Action? DisconnectRequested;
         public event Action? RefreshMenuRequested;
         public event Action? BleScanRequested;
         public event Action? CheckUpdateRequested;
+        public event Action? JoystickMappingRequested;
 
         public MainForm(AppSettings settings)
         {
@@ -108,6 +112,15 @@ namespace RcConnector
                 Padding = new Padding(4, 1, 0, 1),
             };
 
+            _statusHz = new Label
+            {
+                AutoSize = true,
+                Font = statusFont,
+                Text = "",
+                TextAlign = ContentAlignment.MiddleCenter,
+                Padding = new Padding(4, 1, 4, 1),
+            };
+
             _statusArm = new Label
             {
                 AutoSize = true,
@@ -128,6 +141,7 @@ namespace RcConnector
 
             _statusPanel.Controls.Add(_statusMode);
             _statusPanel.Controls.Add(_statusArm);
+            _statusPanel.Controls.Add(_statusHz);
             _statusPanel.Controls.Add(_statusTransport);
 
             // --- Toolbar (connect/disconnect) ---
@@ -162,6 +176,19 @@ namespace RcConnector
             };
             _btnDisconnect.Click += (s, e) => DisconnectRequested?.Invoke();
 
+            _btnJoyMapping = new Button
+            {
+                Text = "\uD83C\uDFAE", // gamepad emoji
+                Font = new Font("Segoe UI Emoji", 12f, FontStyle.Bold),
+                Dock = DockStyle.Right,
+                Width = 30,
+                BackColor = Theme.ButtonBg,
+                ForeColor = Theme.ButtonFg,
+                FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.System,
+                Padding = Padding.Empty,
+            };
+            _btnJoyMapping.Click += (s, e) => JoystickMappingRequested?.Invoke();
+
             _toolbarPanel = new Panel
             {
                 Dock = DockStyle.Top,
@@ -171,6 +198,7 @@ namespace RcConnector
             };
             _toolbarPanel.Controls.Add(_btnConnect);
             _toolbarPanel.Controls.Add(_btnDisconnect);
+            _toolbarPanel.Controls.Add(_btnJoyMapping);
 
             // --- Tab control ---
             _tabs = Theme.IsDark ? new BorderlessTabControl() : new TabControl();
@@ -410,86 +438,100 @@ namespace RcConnector
             {
                 BeginInvoke(new Action(() =>
                 {
-                    // Reset transport label to default (non-badge) style
-                    _statusTransport.ForeColor = Color.LightGray;
-                    _statusTransport.BackColor = Color.Transparent;
+                    _statusPanel.SuspendLayout();
+
+                    // Build desired badge values
+                    string tText, hzText = "", armText = "", modeText = "";
+                    Color tFg = Color.White, tBg, hzBg = Color.Transparent;
+                    Color armFg = Color.White, armBg = Color.Transparent;
+                    Color modeFg = Color.White, modeBg = Color.Transparent;
+                    Color panelBg = Color.FromArgb(40, 40, 40);
 
                     if (!connected)
                     {
-                        _statusTransport.Text = $" {L.Get("status_disconnected")} ";
-                        _statusTransport.ForeColor = Color.White;
-                        _statusTransport.BackColor = Color.FromArgb(90, 90, 90);
-                        _statusPanel.BackColor = Color.FromArgb(40, 40, 40);
-                        _statusArm.Text = "";
+                        tText = $" {L.Get("status_disconnected")} ";
+                        tBg = Color.FromArgb(90, 90, 90);
                         if (droneConnected)
                         {
-                            _statusMode.Text = $" {L.Get("status_no_rc")} ";
-                            _statusMode.ForeColor = Color.White;
-                            _statusMode.BackColor = Color.FromArgb(160, 80, 20);
-                        }
-                        else
-                        {
-                            _statusMode.Text = "";
-                            _statusMode.BackColor = Color.Transparent;
+                            modeText = $" {L.Get("status_no_rc")} ";
+                            modeBg = Color.FromArgb(160, 80, 20);
                         }
                     }
                     else if (hasRcData && droneConnected)
                     {
-                        _statusTransport.Text = $"{transportName} {hz:0}Hz";
-                        _statusPanel.BackColor = Color.FromArgb(40, 40, 40);
-
-                        // Armed / Disarmed badge
-                        _statusArm.Text = armed ? L.Get("status_armed") : L.Get("status_disarmed");
-                        _statusArm.ForeColor = Color.White;
-                        _statusArm.BackColor = armed
-                            ? Color.FromArgb(180, 40, 40)
-                            : Color.FromArgb(40, 120, 40);
-
-                        // Flight mode badge
+                        tText = $" {transportName} ";
+                        tBg = Color.FromArgb(50, 100, 50);
+                        hzText = $" {hz:0}Hz ";
+                        hzBg = Color.FromArgb(50, 80, 140);
+                        armText = armed ? L.Get("status_armed") : L.Get("status_disarmed");
+                        armBg = armed ? Color.FromArgb(180, 40, 40) : Color.FromArgb(40, 120, 40);
                         string modeName = DecodeCopterMode(customMode);
-                        _statusMode.Text = $" {modeName} ";
-                        _statusMode.ForeColor = Color.White;
-                        _statusMode.BackColor = Color.FromArgb(50, 80, 140);
+                        modeText = $" {modeName} ";
+                        modeBg = Color.FromArgb(50, 80, 140);
                     }
                     else if (hasRcData && !droneConnected)
                     {
-                        _statusTransport.Text = $"{transportName} {hz:0}Hz";
-                        _statusPanel.BackColor = Color.FromArgb(80, 60, 20);
-                        _statusArm.Text = "";
-                        _statusMode.Text = $" {L.Get("status_no_telemetry")} ";
-                        _statusMode.ForeColor = Color.White;
-                        _statusMode.BackColor = Color.FromArgb(160, 80, 20);
+                        tText = $" {transportName} ";
+                        tBg = Color.FromArgb(50, 100, 50);
+                        hzText = $" {hz:0}Hz ";
+                        hzBg = Color.FromArgb(50, 80, 140);
+                        panelBg = Color.FromArgb(80, 60, 20);
+                        modeText = $" {L.Get("status_no_telemetry")} ";
+                        modeBg = Color.FromArgb(160, 80, 20);
                     }
                     else if (!hasRcData && droneConnected)
                     {
-                        _statusTransport.Text = $"{transportName}";
-                        _statusPanel.BackColor = Color.FromArgb(80, 60, 20);
-                        _statusArm.Text = armed ? L.Get("status_armed") : L.Get("status_disarmed");
-                        _statusArm.ForeColor = Color.White;
-                        _statusArm.BackColor = armed
-                            ? Color.FromArgb(180, 40, 40)
-                            : Color.FromArgb(40, 120, 40);
+                        tText = $" {transportName} ";
+                        tBg = Color.FromArgb(160, 80, 20);
+                        panelBg = Color.FromArgb(80, 60, 20);
+                        armText = armed ? L.Get("status_armed") : L.Get("status_disarmed");
+                        armBg = armed ? Color.FromArgb(180, 40, 40) : Color.FromArgb(40, 120, 40);
                         string modeName = DecodeCopterMode(customMode);
-                        _statusMode.Text = $" {modeName} ";
-                        _statusMode.ForeColor = Color.White;
-                        _statusMode.BackColor = Color.FromArgb(50, 80, 140);
+                        modeText = $" {modeName} ";
+                        modeBg = Color.FromArgb(50, 80, 140);
                     }
                     else
                     {
-                        _statusTransport.Text = $"{transportName}";
-                        _statusPanel.BackColor = Color.FromArgb(80, 40, 20);
-                        _statusArm.Text = "";
-                        _statusMode.Text = $" {L.Get("status_no_telemetry")} ";
-                        _statusMode.ForeColor = Color.White;
-                        _statusMode.BackColor = Color.FromArgb(160, 80, 20);
+                        tText = $" {transportName} ";
+                        tBg = Color.FromArgb(160, 80, 20);
+                        panelBg = Color.FromArgb(80, 40, 20);
+                        modeText = $" {L.Get("status_no_telemetry")} ";
+                        modeBg = Color.FromArgb(160, 80, 20);
                     }
 
-                    // Layout labels left to right
-                    _statusArm.Location = new Point(_statusTransport.Right + 2, 0);
-                    _statusMode.Location = new Point(_statusArm.Text != "" ? _statusArm.Right + 2 : _statusTransport.Right + 2, 0);
+                    // Apply only changed properties to avoid flicker
+                    SetBadge(_statusTransport, tText, tFg, tBg);
+                    SetBadge(_statusHz, hzText, Color.White, hzBg);
+                    SetBadge(_statusArm, armText, armFg, armBg);
+                    SetBadge(_statusMode, modeText, modeFg, modeBg);
+                    if (_statusPanel.BackColor != panelBg)
+                        _statusPanel.BackColor = panelBg;
+
+                    // Layout badges left to right
+                    int x = _statusTransport.Right + 2;
+                    if (_statusHz.Text != "")
+                    {
+                        _statusHz.Location = new Point(x, 0);
+                        x = _statusHz.Right + 2;
+                    }
+                    if (_statusArm.Text != "")
+                    {
+                        _statusArm.Location = new Point(x, 0);
+                        x = _statusArm.Right + 2;
+                    }
+                    _statusMode.Location = new Point(x, 0);
+
+                    _statusPanel.ResumeLayout(false);
                 }));
             }
             catch (ObjectDisposedException) { }
+        }
+
+        private static void SetBadge(Label lbl, string text, Color fg, Color bg)
+        {
+            if (lbl.Text != text) lbl.Text = text;
+            if (lbl.ForeColor != fg) lbl.ForeColor = fg;
+            if (lbl.BackColor != bg) lbl.BackColor = bg;
         }
 
         /// <summary>
@@ -619,6 +661,27 @@ namespace RcConnector
             var udpItem = new ToolStripMenuItem($"UDP :{udpPort}");
             udpItem.Click += (s, e) => ConnectUdpRequested?.Invoke();
             _connectDropdown.Items.Add(udpItem);
+
+            // Joystick
+            var joyMenu = new ToolStripMenuItem("Joystick");
+            var joysticks = Transport.JoystickTransport.ListDevices();
+            if (joysticks.Length == 0)
+            {
+                joyMenu.DropDownItems.Add(new ToolStripMenuItem(L.Get("menu_no_joysticks")) { Enabled = false });
+            }
+            else
+            {
+                foreach (var (id, name) in joysticks)
+                {
+                    var item = new ToolStripMenuItem(name);
+                    if (id == settings.JoystickDeviceId)
+                        item.Font = new Font(item.Font, FontStyle.Bold);
+                    int devId = id; string devName = name;
+                    item.Click += (s, e) => ConnectJoystickRequested?.Invoke(devId, devName);
+                    joyMenu.DropDownItems.Add(item);
+                }
+            }
+            _connectDropdown.Items.Add(joyMenu);
         }
 
         /// <summary>
