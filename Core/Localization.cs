@@ -97,6 +97,10 @@ namespace RcConnector.Core
             ["settings_theme_light"] = "Light",
             ["settings_theme_dark"] = "Dark",
             ["settings_theme_hint"] = "Restart app to apply",
+            ["settings_rc_forward"] = "Forward RC channels via UDP",
+            ["settings_rc_forward_ip"] = "Forward IP:",
+            ["settings_rc_forward_port"] = "Forward port:",
+            ["settings_rc_forward_hint"] = "\u2139 sends \"RC 1500,1500,...\" text",
             ["settings_apply"] = "Apply",
             ["settings_close"] = "Close",
 
@@ -121,6 +125,11 @@ namespace RcConnector.Core
             ["joymap_btn_number"] = "Btn {0}",
             ["joymap_btn_pwm_positions"] = "PWM positions:",
             ["joymap_passthrough"] = "passthrough",
+            ["joymap_save"] = "Save...",
+            ["joymap_load"] = "Load...",
+            ["joymap_file_filter"] = "JSON files|*.json",
+            ["joymap_load_error"] = "Failed to load mapping: {0}",
+            ["joymap_saved"] = "saved",
 
             // First-run tip
             ["tip_pin_icon"] = "Tip: pin RC-Connector icon to taskbar for easy access.\nRight-click taskbar → Taskbar settings → Select which icons appear.",
@@ -220,6 +229,10 @@ namespace RcConnector.Core
             ["settings_theme_light"] = "Світла",
             ["settings_theme_dark"] = "Темна",
             ["settings_theme_hint"] = "Перезапустіть для застосування",
+            ["settings_rc_forward"] = "Пересилати RC канали по UDP",
+            ["settings_rc_forward_ip"] = "IP пересилання:",
+            ["settings_rc_forward_port"] = "Порт пересилання:",
+            ["settings_rc_forward_hint"] = "\u2139 надсилає \"RC 1500,1500,...\" текстом",
             ["settings_apply"] = "Застосувати",
             ["settings_close"] = "Закрити",
 
@@ -244,6 +257,11 @@ namespace RcConnector.Core
             ["joymap_btn_number"] = "Кн {0}",
             ["joymap_btn_pwm_positions"] = "Позиції PWM:",
             ["joymap_passthrough"] = "прохідний",
+            ["joymap_save"] = "Зберегти...",
+            ["joymap_load"] = "Завантажити...",
+            ["joymap_file_filter"] = "JSON файли|*.json",
+            ["joymap_load_error"] = "Не вдалося завантажити маппінг: {0}",
+            ["joymap_saved"] = "збережено",
 
             // First-run tip
             ["tip_pin_icon"] = "Порада: закріпіть іконку RC-Connector на панелі завдань.\nПКМ панель завдань → Параметри панелі → Виберіть іконки.",

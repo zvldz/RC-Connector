@@ -13,6 +13,7 @@ Replaces the need for RC Override plugins in Mission Planner or QGroundControl.
 ```
 TX16S Radio ──CRSF──> ESP32 ──Serial/BLE/WiFi──> [RC-Connector] ──UDP MAVLink──> Drone
 USB Gamepad/Joystick ─────────────────────────>        │
+                                                       ├── UDP forward (RC text) ──> other app
                                                        ├── Tray icon (color-coded status)
                                                        └── Mini window (channels, log)
 ```
@@ -24,6 +25,7 @@ USB Gamepad/Joystick ───────────────────�
 - **Joystick channel mapping**: 8 RC channels, each assignable to axis or button group with live PWM preview
 - **Button groups**: assign multiple gamepad buttons to one RC channel — PWM positions auto-distributed
 - **MAVLink output**: HEARTBEAT + RC_CHANNELS_OVERRIDE (16 channels) via UDP
+- **RC forwarding**: forward parsed channels as `RC 1500,1500,...` text via UDP to configurable IP:port
 - **Passive mode**: listens for drone telemetry, replies to sender address
 - **Tray icon** with color-coded status: gray/red/orange/green
 - **Mini window**: 16 channel bars with real-time values, flight mode, armed status

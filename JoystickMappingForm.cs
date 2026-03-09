@@ -1,5 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
 using System.Windows.Forms;
 using RcConnector.Core;
 
@@ -16,22 +20,25 @@ namespace RcConnector
         private const int PWM_BAR_W = 120;
         private const int PWM_BAR_H = 14;
 
-        private readonly JoystickMapping _mapping;
+        private readonly Dictionary<string, JoystickMapping> _savedMappings;
         private readonly ChannelRow[] _rows = new ChannelRow[NUM_CH];
         private readonly ComboBox _cboDevice;
         private readonly CheckBox _chkLive;
         private readonly Timer _liveTimer;
 
         private int _joystickDeviceId;
+        private string? _selectedDeviceName;
         private int[] _livePwm = new int[NUM_CH]; // current PWM values for live preview
 
-        /// <summary>Fired when user clicks Apply.</summary>
-        public event Action<JoystickMapping>? ApplyRequested;
+        /// <summary>Fired when user clicks Apply. Includes device name for per-device storage.</summary>
+        public event Action<string?, JoystickMapping>? ApplyRequested;
 
-        public JoystickMappingForm(JoystickMapping mapping, int joystickDeviceId)
+        public JoystickMappingForm(JoystickMapping mapping, int joystickDeviceId,
+            Dictionary<string, JoystickMapping> savedMappings, string? currentDeviceName)
         {
-            _mapping = mapping;
+            _savedMappings = savedMappings;
             _joystickDeviceId = joystickDeviceId;
+            _selectedDeviceName = currentDeviceName;
 
             SuspendLayout();
 
@@ -91,7 +98,7 @@ namespace RcConnector
             y += 6;
 
             // Separator
-            Controls.Add(new Label { BorderStyle = BorderStyle.Fixed3D, Location = new Point(8, y), Size = new Size(400, 2) });
+            Controls.Add(new Label { BorderStyle = BorderStyle.Fixed3D, Location = new Point(8, y), Size = new Size(420, 2) });
             y += 8;
 
             // Live preview checkbox
@@ -105,11 +112,35 @@ namespace RcConnector
             };
             Controls.Add(_chkLive);
 
-            // Buttons
+            y += 26;
+
+            // Buttons: Save / Load / Defaults / Apply / Close
+            var btnSave = new Button
+            {
+                Text = L.Get("joymap_save"),
+                Location = new Point(8, y),
+                Size = new Size(75, 24),
+                BackColor = Theme.ButtonBg,
+                ForeColor = Theme.ButtonFg,
+                FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.Standard,
+            };
+            btnSave.Click += OnSaveClick;
+
+            var btnLoad = new Button
+            {
+                Text = L.Get("joymap_load"),
+                Location = new Point(88, y),
+                Size = new Size(75, 24),
+                BackColor = Theme.ButtonBg,
+                ForeColor = Theme.ButtonFg,
+                FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.Standard,
+            };
+            btnLoad.Click += OnLoadClick;
+
             var btnDefaults = new Button
             {
                 Text = L.Get("joymap_defaults"),
-                Location = new Point(200, y),
+                Location = new Point(214, y),
                 Size = new Size(75, 24),
                 BackColor = Theme.ButtonBg,
                 ForeColor = Theme.ButtonFg,
@@ -120,7 +151,7 @@ namespace RcConnector
             var btnApply = new Button
             {
                 Text = L.Get("settings_apply"),
-                Location = new Point(280, y),
+                Location = new Point(296, y),
                 Size = new Size(60, 24),
                 BackColor = Theme.ButtonBg,
                 ForeColor = Theme.ButtonFg,
@@ -131,7 +162,7 @@ namespace RcConnector
             var btnClose = new Button
             {
                 Text = L.Get("settings_close"),
-                Location = new Point(345, y),
+                Location = new Point(362, y),
                 Size = new Size(60, 24),
                 BackColor = Theme.ButtonBg,
                 ForeColor = Theme.ButtonFg,
@@ -140,11 +171,13 @@ namespace RcConnector
             btnClose.Click += (s, e) => Close();
             CancelButton = btnClose;
 
+            Controls.Add(btnSave);
+            Controls.Add(btnLoad);
             Controls.Add(btnDefaults);
             Controls.Add(btnApply);
             Controls.Add(btnClose);
 
-            ClientSize = new Size(414, y + 32);
+            ClientSize = new Size(434, y + 32);
 
             // Live preview timer (100ms = 10Hz)
             _liveTimer = new Timer { Interval = 100 };
@@ -174,31 +207,59 @@ namespace RcConnector
         // Device selector
         // -------------------------------------------------------------------
 
+        private struct DeviceEntry
+        {
+            public string Name;
+            public int Id; // -1 = saved profile, not connected
+        }
+
+        private DeviceEntry[] _deviceEntries = Array.Empty<DeviceEntry>();
+
         private void PopulateDeviceList(int preselectedId)
         {
             _cboDevice.Items.Clear();
             _cboDevice.Items.Add(L.Get("joymap_no_device"));
 
-            var devices = Transport.JoystickTransport.ListDevices();
+            var entries = new List<DeviceEntry>();
+            var connectedNames = new HashSet<string>();
             int selectedIdx = 0;
 
+            // Connected devices
+            var devices = Transport.JoystickTransport.ListDevices();
             for (int i = 0; i < devices.Length; i++)
             {
+                entries.Add(new DeviceEntry { Name = devices[i].Name, Id = devices[i].Id });
+                connectedNames.Add(devices[i].Name);
                 _cboDevice.Items.Add($"{devices[i].Name} (id={devices[i].Id})");
                 if (devices[i].Id == preselectedId)
-                    selectedIdx = i + 1; // +1 because index 0 = "No joystick"
+                    selectedIdx = entries.Count; // index in combo (1-based due to "No device")
             }
 
-            // Store device IDs for lookup
-            _deviceIds = new int[devices.Length];
-            for (int i = 0; i < devices.Length; i++)
-                _deviceIds[i] = devices[i].Id;
+            // Saved profiles not currently connected
+            foreach (var name in _savedMappings.Keys.OrderBy(k => k))
+            {
+                if (connectedNames.Contains(name))
+                    continue;
+                entries.Add(new DeviceEntry { Name = name, Id = -1 });
+                _cboDevice.Items.Add($"{name} ({L.Get("joymap_saved")})");
+                // If this is the current device name and nothing was preselected by ID
+                if (selectedIdx == 0 && name == _selectedDeviceName)
+                    selectedIdx = entries.Count;
+            }
 
+            _deviceEntries = entries.ToArray();
             _cboDevice.SelectedIndex = selectedIdx;
-            _joystickDeviceId = selectedIdx > 0 ? _deviceIds[selectedIdx - 1] : -1;
+            if (selectedIdx > 0)
+            {
+                var entry = _deviceEntries[selectedIdx - 1];
+                _joystickDeviceId = entry.Id;
+                _selectedDeviceName = entry.Name;
+            }
+            else
+            {
+                _joystickDeviceId = -1;
+            }
         }
-
-        private int[] _deviceIds = Array.Empty<int>();
 
         private void OnDeviceChanged(object? sender, EventArgs e)
         {
@@ -206,15 +267,24 @@ namespace RcConnector
             if (idx <= 0)
             {
                 _joystickDeviceId = -1;
+                _selectedDeviceName = null;
                 _chkLive.Checked = false;
                 _chkLive.Enabled = false;
                 _liveTimer.Stop();
             }
             else
             {
-                _joystickDeviceId = _deviceIds[idx - 1];
-                _chkLive.Enabled = true;
-                _chkLive.Checked = true;
+                var entry = _deviceEntries[idx - 1];
+                _joystickDeviceId = entry.Id;
+                _selectedDeviceName = entry.Name;
+                _chkLive.Enabled = entry.Id >= 0;
+                _chkLive.Checked = entry.Id >= 0;
+                if (entry.Id < 0)
+                    _liveTimer.Stop();
+
+                // Load mapping for selected device
+                if (_savedMappings.TryGetValue(entry.Name, out var mapping))
+                    ApplyMappingToUI(mapping);
             }
         }
 
@@ -334,7 +404,7 @@ namespace RcConnector
                     ? L.Get("joymap_passthrough")
                     : "1500",
                 Location = new Point(240 + PWM_BAR_W + 4, y + 5),
-                Size = new Size(50, 16),
+                Size = new Size(70, 16),
                 ForeColor = Theme.ChannelValFg,
                 Font = new Font("Consolas", 8f),
             };
@@ -368,22 +438,25 @@ namespace RcConnector
             if (src == ChannelSourceType.None)
                 return;
 
+            int actualW = row.PwmPanel.ClientSize.Width;
+            int actualH = row.PwmPanel.ClientSize.Height;
+
             int pwm = _livePwm[row.ChannelIndex];
             if (pwm < 1000) pwm = 1500; // default center if no live data
 
             double frac = (pwm - 1000) / 1000.0;
-            int barW = (int)(frac * PWM_BAR_W);
+            int barW = (int)(frac * actualW);
 
             bool extreme = pwm <= 1010 || pwm >= 1990;
             var color = extreme ? Theme.BarFgExtreme : Theme.BarFg;
 
             using var brush = new SolidBrush(color);
-            g.FillRectangle(brush, 0, 0, barW, PWM_BAR_H);
+            g.FillRectangle(brush, 0, 0, barW, actualH);
 
             // Draw center mark
-            int centerX = PWM_BAR_W / 2;
+            int centerX = actualW / 2;
             using var pen = new Pen(Theme.HintFg) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dot };
-            g.DrawLine(pen, centerX, 0, centerX, PWM_BAR_H);
+            g.DrawLine(pen, centerX, 0, centerX, actualH);
 
             // For button groups: draw position markers
             if (src == ChannelSourceType.ButtonGroup && row.Buttons.Length > 0)
@@ -393,8 +466,8 @@ namespace RcConnector
                 for (int i = 0; i < numPos; i++)
                 {
                     double posF = (double)i / (numPos - 1);
-                    int mx = (int)(posF * PWM_BAR_W);
-                    g.DrawLine(markerPen, mx, 0, mx, PWM_BAR_H);
+                    int mx = (int)(posF * actualW);
+                    g.DrawLine(markerPen, mx, 0, mx, actualH);
                 }
             }
         }
@@ -526,10 +599,16 @@ namespace RcConnector
         }
 
         // -------------------------------------------------------------------
-        // Apply / Defaults
+        // Save / Load mapping to file
         // -------------------------------------------------------------------
 
-        private void OnApplyClick(object? sender, EventArgs e)
+        private static readonly JsonSerializerOptions _jsonOptions = new()
+        {
+            WriteIndented = true,
+            Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+        };
+
+        private JoystickMapping BuildMappingFromUI()
         {
             var result = new JoystickMapping();
             for (int i = 0; i < NUM_CH; i++)
@@ -542,22 +621,81 @@ namespace RcConnector
                     Buttons = (int[])_rows[i].Buttons.Clone(),
                 };
             }
-            ApplyRequested?.Invoke(result);
+            return result;
+        }
+
+        private void ApplyMappingToUI(JoystickMapping mapping)
+        {
+            for (int i = 0; i < NUM_CH; i++)
+            {
+                var cfg = mapping.Channels[i];
+                _rows[i].CboSource.SelectedIndex = (int)cfg.SourceType;
+                _rows[i].CboAxis.SelectedIndex = (int)cfg.Axis;
+                _rows[i].ChkInvert.Checked = cfg.Invert;
+                _rows[i].Buttons = (int[])cfg.Buttons.Clone();
+                _rows[i].BtnEditButtons.Text = cfg.Buttons.Length > 0
+                    ? $"{cfg.Buttons.Length} btn"
+                    : L.Get("joymap_buttons_edit");
+            }
+        }
+
+        private void OnSaveClick(object? sender, EventArgs e)
+        {
+            using var dlg = new SaveFileDialog
+            {
+                Filter = L.Get("joymap_file_filter"),
+                DefaultExt = "json",
+                FileName = "joystick-mapping.json",
+            };
+            if (dlg.ShowDialog(this) != DialogResult.OK)
+                return;
+
+            var mapping = BuildMappingFromUI();
+            var json = JsonSerializer.Serialize(mapping, _jsonOptions);
+            File.WriteAllText(dlg.FileName, json);
+        }
+
+        private void OnLoadClick(object? sender, EventArgs e)
+        {
+            using var dlg = new OpenFileDialog
+            {
+                Filter = L.Get("joymap_file_filter"),
+                DefaultExt = "json",
+            };
+            if (dlg.ShowDialog(this) != DialogResult.OK)
+                return;
+
+            try
+            {
+                var json = File.ReadAllText(dlg.FileName);
+                var mapping = JsonSerializer.Deserialize<JoystickMapping>(json, _jsonOptions);
+                if (mapping?.Channels == null || mapping.Channels.Length != NUM_CH)
+                    throw new InvalidDataException("Invalid channel count");
+
+                ApplyMappingToUI(mapping);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, L.Get("joymap_load_error", ex.Message),
+                    Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        // -------------------------------------------------------------------
+        // Apply / Defaults
+        // -------------------------------------------------------------------
+
+        private void OnApplyClick(object? sender, EventArgs e)
+        {
+            ApplyRequested?.Invoke(_selectedDeviceName, BuildMappingFromUI());
             Close();
         }
 
         private void OnDefaultsClick(object? sender, EventArgs e)
         {
-            var defaults = JoystickMapping.CreateDefault();
-            for (int i = 0; i < NUM_CH; i++)
-            {
-                var cfg = defaults[i];
-                _rows[i].CboSource.SelectedIndex = (int)cfg.SourceType;
-                _rows[i].CboAxis.SelectedIndex = (int)cfg.Axis;
-                _rows[i].ChkInvert.Checked = cfg.Invert;
-                _rows[i].Buttons = (int[])cfg.Buttons.Clone();
-                _rows[i].BtnEditButtons.Text = L.Get("joymap_buttons_edit");
-            }
+            var defaults = new JoystickMapping();
+            defaults.Channels = JoystickMapping.CreateDefault();
+            ApplyMappingToUI(defaults);
         }
 
         // -------------------------------------------------------------------

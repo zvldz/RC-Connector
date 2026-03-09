@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Text.Json;
@@ -22,12 +23,19 @@ namespace RcConnector.Core
         public string? BleDeviceId { get; set; }
         public string? BleDeviceName { get; set; }
         public int JoystickDeviceId { get; set; } = -1;
-        public int JoystickPollHz { get; set; } = 10; // 1-50 Hz
+        public string? JoystickDeviceName { get; set; }
+        public int JoystickPollHz { get; set; } = 20; // 1-50 Hz
         public JoystickMapping JoystickMapping { get; set; } = new();
+        public Dictionary<string, JoystickMapping> JoystickMappings { get; set; } = new();
 
         // MAVLink output (listen port — replies to sender address)
         public int MavlinkPort { get; set; } = 14555;
         public int MavlinkSysId { get; set; } = 255;
+
+        // RC forward: send parsed channels as "RC 1500,1500,...\n" via UDP
+        public bool RcForwardEnabled { get; set; } = false;
+        public string RcForwardIp { get; set; } = "127.0.0.1";
+        public int RcForwardPort { get; set; } = 14560;
 
         // Serial
         public bool SerialDtrRts { get; set; } = true;
@@ -41,6 +49,27 @@ namespace RcConnector.Core
         public bool RunAtStartup { get; set; } = false;
         public bool FirstRunDone { get; set; } = false;
         public string ThemeMode { get; set; } = "auto"; // "auto", "light", "dark"
+
+        /// <summary>
+        /// Get mapping for a specific joystick device. Falls back to default JoystickMapping.
+        /// </summary>
+        public JoystickMapping GetJoystickMapping(string? deviceName)
+        {
+            if (deviceName != null && JoystickMappings.TryGetValue(deviceName, out var mapping))
+                return mapping;
+            return JoystickMapping;
+        }
+
+        /// <summary>
+        /// Store mapping for a specific joystick device by name.
+        /// </summary>
+        public void SetJoystickMapping(string? deviceName, JoystickMapping mapping)
+        {
+            if (deviceName != null)
+                JoystickMappings[deviceName] = mapping;
+            else
+                JoystickMapping = mapping;
+        }
 
         public static AppSettings Load()
         {

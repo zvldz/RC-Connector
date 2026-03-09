@@ -26,6 +26,11 @@ namespace RcConnector
         // Serial
         private readonly CheckBox _chkDtrRtsFix;
 
+        // RC Forward
+        private readonly CheckBox _chkRcForward;
+        private readonly TextBox _txtRcForwardIp;
+        private readonly TextBox _txtRcForwardPort;
+
         // UI
         private readonly ComboBox _cboLanguage;
         private readonly ComboBox _cboTheme;
@@ -139,6 +144,51 @@ namespace RcConnector
             Controls.Add(_chkDtrRtsFix);
             y += 15;
             AddHint(L.Get("settings_dtr_rts_hint"), 28, y);
+
+            y += 24;
+
+            // --- RC Forward ---
+            _chkRcForward = new CheckBox
+            {
+                Text = L.Get("settings_rc_forward"),
+                Location = new Point(10, y),
+                AutoSize = true,
+                Checked = settings.RcForwardEnabled,
+            };
+            Controls.Add(_chkRcForward);
+            y += 20;
+
+            AddLabel(L.Get("settings_rc_forward_ip"), 28, y);
+            _txtRcForwardIp = new TextBox
+            {
+                Location = new Point(controlX, y),
+                Width = 100,
+                Text = settings.RcForwardIp,
+                BackColor = Theme.InputBg,
+                ForeColor = Theme.InputFg,
+                Enabled = settings.RcForwardEnabled,
+            };
+            Controls.Add(_txtRcForwardIp);
+
+            AddLabel(L.Get("settings_rc_forward_port"), 225, y);
+            _txtRcForwardPort = new TextBox
+            {
+                Location = new Point(305, y),
+                Width = 50,
+                Text = settings.RcForwardPort.ToString(),
+                BackColor = Theme.InputBg,
+                ForeColor = Theme.InputFg,
+                Enabled = settings.RcForwardEnabled,
+            };
+            Controls.Add(_txtRcForwardPort);
+            y += 15;
+            AddHint(L.Get("settings_rc_forward_hint"), 28, y);
+
+            _chkRcForward.CheckedChanged += (s, e) =>
+            {
+                _txtRcForwardIp.Enabled = _chkRcForward.Checked;
+                _txtRcForwardPort.Enabled = _chkRcForward.Checked;
+            };
 
             y += 24;
 
@@ -262,7 +312,7 @@ namespace RcConnector
             Controls.Add(btnApply);
             Controls.Add(btnClose);
 
-            ClientSize = new Size(355, y + 32);
+            ClientSize = new Size(370, y + 32);
 
             ResumeLayout(false);
             PerformLayout();
@@ -309,6 +359,8 @@ namespace RcConnector
                 BleDeviceId = _settings.BleDeviceId,
                 BleDeviceName = _settings.BleDeviceName,
                 JoystickDeviceId = _settings.JoystickDeviceId,
+                JoystickDeviceName = _settings.JoystickDeviceName,
+                JoystickMappings = _settings.JoystickMappings,
 
                 // Editable settings
                 MavlinkPort = int.TryParse(_txtMavlinkPort.Text, out int mp) && mp > 0 && mp <= 65535
@@ -319,6 +371,10 @@ namespace RcConnector
                     ? up : _settings.UdpListenPort,
                 JoystickPollHz = int.TryParse(_cboJoystickRate.SelectedItem?.ToString(), out int jph) ? jph : 10,
                 SerialDtrRts = _chkDtrRtsFix.Checked,
+                RcForwardEnabled = _chkRcForward.Checked,
+                RcForwardIp = _txtRcForwardIp.Text.Trim(),
+                RcForwardPort = int.TryParse(_txtRcForwardPort.Text, out int fp) && fp > 0 && fp <= 65535
+                    ? fp : _settings.RcForwardPort,
                 AdaptiveDpi = true,
                 Language = lang,
                 ThemeMode = _cboTheme.SelectedIndex switch { 1 => "light", 2 => "dark", _ => "auto" },

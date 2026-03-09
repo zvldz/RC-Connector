@@ -1,5 +1,8 @@
 using System;
 using System.Drawing;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 using RcConnector.Core;
@@ -38,6 +41,10 @@ namespace RcConnector
         // BLE device cache for submenu
         private List<(string Id, string Name)> _cachedBleDevices = new();
         private bool _bleScanInProgress;
+
+        // RC forward
+        private UdpClient? _rcForwardClient;
+        private IPEndPoint? _rcForwardEndpoint;
 
         // Update
         private readonly UpdateChecker _updateChecker = new();
@@ -130,6 +137,9 @@ namespace RcConnector
                 Log(L.Get("log_mavlink_start_failed", ex.Message));
             }
 
+            // RC forward
+            UpdateRcForwarder();
+
             // Pre-scan BLE devices in background
             _ = Task.Run(async () =>
             {
@@ -163,6 +173,7 @@ namespace RcConnector
             }
 
             _transport?.Dispose();
+            _rcForwardClient?.Dispose();
             _mavlink.Dispose();
             _trayIcon.Visible = false;
             _trayIcon.Dispose();
@@ -185,6 +196,18 @@ namespace RcConnector
             _lastRcData = DateTime.UtcNow;
             _rcFrameCount++;
             _mavlink.SendRcOverride(channels);
+
+            // RC forward via UDP
+            if (_rcForwardClient != null && _rcForwardEndpoint != null)
+            {
+                try
+                {
+                    var line = "RC " + string.Join(",", channels) + "\n";
+                    var bytes = Encoding.ASCII.GetBytes(line);
+                    _rcForwardClient.Send(bytes, bytes.Length, _rcForwardEndpoint);
+                }
+                catch { }
+            }
 
             // Update main form channel bars
             _mainForm?.UpdateChannels(channels);
@@ -327,10 +350,13 @@ namespace RcConnector
                 return;
             }
 
-            _joystickMappingForm = new JoystickMappingForm(_settings.JoystickMapping, _settings.JoystickDeviceId);
-            _joystickMappingForm.ApplyRequested += (newMapping) =>
+            var currentDeviceName = _settings.JoystickDeviceName;
+            _joystickMappingForm = new JoystickMappingForm(
+                _settings.GetJoystickMapping(currentDeviceName), _settings.JoystickDeviceId,
+                _settings.JoystickMappings, currentDeviceName);
+            _joystickMappingForm.ApplyRequested += (deviceName, newMapping) =>
             {
-                _settings.JoystickMapping = newMapping;
+                _settings.SetJoystickMapping(deviceName, newMapping);
                 _settings.Save();
                 Log(L.Get("log_settings_updated"));
             };
@@ -350,6 +376,9 @@ namespace RcConnector
             {
                 bool mavlinkChanged = _settings.MavlinkPort != newSettings.MavlinkPort ||
                     _settings.MavlinkSysId != newSettings.MavlinkSysId;
+                bool forwardChanged = _settings.RcForwardEnabled != newSettings.RcForwardEnabled ||
+                    _settings.RcForwardIp != newSettings.RcForwardIp ||
+                    _settings.RcForwardPort != newSettings.RcForwardPort;
                 bool dpiChanged = _settings.AdaptiveDpi != newSettings.AdaptiveDpi;
                 bool langChanged = _settings.Language != newSettings.Language;
 
@@ -358,6 +387,9 @@ namespace RcConnector
                 _settings.MavlinkSysId = newSettings.MavlinkSysId;
                 _settings.JoystickPollHz = newSettings.JoystickPollHz;
                 _settings.SerialDtrRts = newSettings.SerialDtrRts;
+                _settings.RcForwardEnabled = newSettings.RcForwardEnabled;
+                _settings.RcForwardIp = newSettings.RcForwardIp;
+                _settings.RcForwardPort = newSettings.RcForwardPort;
                 _settings.AdaptiveDpi = newSettings.AdaptiveDpi;
                 _settings.Language = newSettings.Language;
                 _settings.ThemeMode = newSettings.ThemeMode;
@@ -382,6 +414,10 @@ namespace RcConnector
                         Log(L.Get("log_mavlink_restart_failed", ex.Message));
                     }
                 }
+
+                // Restart RC forwarder if settings changed
+                if (forwardChanged)
+                    UpdateRcForwarder();
 
                 // Recreate main form if DPI scaling or language changed
                 if ((dpiChanged || langChanged) && _mainForm != null && !_mainForm.IsDisposed)
@@ -654,7 +690,8 @@ namespace RcConnector
             {
                 _transport?.Dispose();
                 int pollMs = 1000 / Math.Clamp(_settings.JoystickPollHz, 10, 50);
-                var joy = new JoystickTransport(deviceId, deviceName, pollMs, _settings.JoystickMapping);
+                var mapping = _settings.GetJoystickMapping(deviceName);
+                var joy = new JoystickTransport(deviceId, deviceName, pollMs, mapping);
                 WireTransport(joy);
                 _transport = joy;
                 _transport.Connect();
@@ -662,6 +699,7 @@ namespace RcConnector
                 _connected = true;
                 _settings.SourceMode = SourceMode.Joystick;
                 _settings.JoystickDeviceId = deviceId;
+                _settings.JoystickDeviceName = deviceName;
                 _settings.Save();
 
                 Log(L.Get("log_joystick_connected", deviceName));
@@ -698,6 +736,26 @@ namespace RcConnector
             _lastRcData = DateTime.MinValue;
             Log(L.Get("log_disconnected"));
             UpdateMainFormToolbar();
+        }
+
+        // ---------------------------------------------------------------
+        // RC Forward
+        // ---------------------------------------------------------------
+
+        private void UpdateRcForwarder()
+        {
+            _rcForwardClient?.Dispose();
+            _rcForwardClient = null;
+            _rcForwardEndpoint = null;
+
+            if (_settings.RcForwardEnabled &&
+                !string.IsNullOrWhiteSpace(_settings.RcForwardIp) &&
+                IPAddress.TryParse(_settings.RcForwardIp, out var ip) &&
+                _settings.RcForwardPort > 0)
+            {
+                _rcForwardClient = new UdpClient();
+                _rcForwardEndpoint = new IPEndPoint(ip, _settings.RcForwardPort);
+            }
         }
 
         // ---------------------------------------------------------------
