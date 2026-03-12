@@ -351,7 +351,7 @@ namespace RcConnector
         {
             if (_joystickMappingForm != null && !_joystickMappingForm.IsDisposed)
             {
-                _joystickMappingForm.BringToFront();
+                _joystickMappingForm.Close();
                 return;
             }
 
@@ -373,7 +373,7 @@ namespace RcConnector
         {
             if (_settingsForm != null && !_settingsForm.IsDisposed)
             {
-                _settingsForm.BringToFront();
+                _settingsForm.Close();
                 return;
             }
 
