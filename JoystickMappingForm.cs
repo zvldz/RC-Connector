@@ -48,7 +48,7 @@ namespace RcConnector
             ForeColor = Theme.FormFg;
             Text = L.Get("joymap_title");
             FormBorderStyle = FormBorderStyle.FixedDialog;
-            StartPosition = FormStartPosition.CenterScreen;
+            StartPosition = FormStartPosition.Manual;
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;

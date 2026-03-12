@@ -120,6 +120,7 @@ namespace RcConnector
                 ContextMenuStrip = _contextMenu,
                 Visible = true,
             };
+            _trayIcon.MouseClick += (s, e) => { if (e.Button == MouseButtons.Left) ToggleMainForm(); };
             _trayIcon.DoubleClick += (s, e) => ToggleMainForm();
 
             // Main processing timer
@@ -228,6 +229,9 @@ namespace RcConnector
 
         private void UpdateStatus()
         {
+            // Don't overwrite download progress icon
+            if (_downloading) return;
+
             // Calculate data rate (Hz) every second
             var now = DateTime.UtcNow;
             if ((now - _lastRateCalc).TotalMilliseconds >= 1000)
@@ -361,6 +365,7 @@ namespace RcConnector
                 _settings.Save();
                 Log(L.Get("log_settings_updated"));
             };
+            PositionAvoidOverlap(_joystickMappingForm);
             _joystickMappingForm.Show();
         }
 
@@ -433,25 +438,19 @@ namespace RcConnector
                 _settings.Save();
                 Log(L.Get("log_settings_updated"));
             };
+            PositionAvoidOverlap(_settingsForm);
             _settingsForm.Show();
         }
 
+        private bool _downloading;
+
         private async void OnBalloonClicked(object? sender, EventArgs e)
         {
+            if (_downloading) return;
             if (!_updatePending) return;
             _updatePending = false;
 
-            Log(L.Get("log_update_downloading", _updateChecker.LatestTag ?? ""));
-            _trayIcon.BalloonTipTitle = "RC-Connector";
-            _trayIcon.BalloonTipText = L.Get("update_downloading");
-            _trayIcon.ShowBalloonTip(3000);
-
-            bool launched = await _updateChecker.DownloadAndLaunchAsync();
-            if (launched)
-            {
-                DoDisconnect();
-                Application.Exit();
-            }
+            await StartDownloadAsync();
         }
 
         private async Task CheckForUpdatesAsync(int delayMs = 0)
@@ -472,6 +471,66 @@ namespace RcConnector
                 _trayIcon.BalloonTipText = L.Get("update_available", tag ?? "");
                 _trayIcon.ShowBalloonTip(10000);
             }
+        }
+
+        private async Task ForceUpdateAsync()
+        {
+            if (_downloading) return;
+
+            // Fetch latest release info (ignore version comparison)
+            await _updateChecker.CheckAsync();
+            if (string.IsNullOrEmpty(_updateChecker.DownloadUrl))
+            {
+                Log("Force update: no download URL found");
+                return;
+            }
+
+            await StartDownloadAsync();
+        }
+
+        private async Task StartDownloadAsync()
+        {
+            _downloading = true;
+            Log(L.Get("log_update_downloading", _updateChecker.LatestTag ?? ""));
+
+            // Show progress on tray icon
+            UpdateDownloadIcon(0);
+            _trayIcon.Text = L.Get("update_downloading");
+
+            _updateChecker.DownloadProgress += OnDownloadProgress;
+
+            bool launched = await _updateChecker.DownloadAndLaunchAsync();
+
+            _updateChecker.DownloadProgress -= OnDownloadProgress;
+            _downloading = false;
+
+            // Restore normal icon
+            _trayIcon.Tag = null;
+
+            if (launched)
+            {
+                DoDisconnect();
+                Application.Exit();
+            }
+        }
+
+        private void OnDownloadProgress(long bytesReceived, long totalBytes)
+        {
+            int percent = (int)(bytesReceived * 100 / totalBytes);
+            int mb = (int)(bytesReceived / 1_048_576);
+            int totalMb = (int)(totalBytes / 1_048_576);
+            UpdateDownloadIcon(percent);
+            string status = $"{L.Get("update_downloading")} {percent}% ({mb}/{totalMb} MB)";
+            _trayIcon.Text = status;
+            Log(status);
+        }
+
+        private void UpdateDownloadIcon(int percent)
+        {
+            var oldIcon = _trayIcon.Icon;
+            _trayIcon.Icon = CreateProgressIcon(percent);
+            _trayIcon.Tag = "download";
+            oldIcon?.Dispose();
         }
 
         private void OnExitClick(object? sender, EventArgs e)
@@ -858,6 +917,7 @@ namespace RcConnector
                 UpdateMainFormToolbar();
             };
             _mainForm.CheckUpdateRequested += () => _ = CheckForUpdatesAsync();
+            _mainForm.ForceUpdateRequested += () => _ = ForceUpdateAsync();
 
             // Show cached latest version in About tab
             if (_updateChecker.LatestTag != null)
@@ -902,6 +962,61 @@ namespace RcConnector
                     _settings.UdpListenPort,
                     _settings);
             }
+        }
+
+        /// <summary>
+        /// Position a child form next to existing visible forms without overlapping.
+        /// Tries right of rightmost form, then left of leftmost, then falls back to cascade.
+        /// </summary>
+        private void PositionAvoidOverlap(Form child)
+        {
+            child.StartPosition = FormStartPosition.Manual;
+            const int gap = 8;
+
+            // Collect all visible app forms
+            var siblings = new List<Form>();
+            if (_mainForm != null && !_mainForm.IsDisposed && _mainForm.Visible)
+                siblings.Add(_mainForm);
+            if (_settingsForm != null && !_settingsForm.IsDisposed && _settingsForm.Visible)
+                siblings.Add(_settingsForm);
+            if (_joystickMappingForm != null && !_joystickMappingForm.IsDisposed && _joystickMappingForm.Visible)
+                siblings.Add(_joystickMappingForm);
+
+            if (siblings.Count == 0)
+            {
+                child.StartPosition = FormStartPosition.CenterScreen;
+                return;
+            }
+
+            var anchor = siblings[0];
+            var screen = Screen.FromControl(anchor);
+            var area = screen.WorkingArea;
+
+            // Find bounding box of all visible forms
+            int allRight = int.MinValue;
+            int allLeft = int.MaxValue;
+            int topY = siblings[0].Top;
+            foreach (var f in siblings)
+            {
+                if (f.Right > allRight) allRight = f.Right;
+                if (f.Left < allLeft) allLeft = f.Left;
+                if (f.Top < topY) topY = f.Top;
+            }
+
+            int x, y = Math.Max(area.Top, Math.Min(topY, area.Bottom - child.Height));
+
+            // Try right of all forms
+            if (allRight + gap + child.Width <= area.Right)
+                x = allRight + gap;
+            // Try left of all forms
+            else if (allLeft - gap - child.Width >= area.Left)
+                x = allLeft - gap - child.Width;
+            // Fallback: cascade from main form
+            else
+                x = anchor.Left + 30;
+
+            x = Math.Max(area.Left, Math.Min(x, area.Right - child.Width));
+            child.Location = new Point(x, y);
         }
 
         private static void EnsureOnScreen(Form form)
@@ -995,6 +1110,36 @@ namespace RcConnector
             // Circle outline
             using var pen = new Pen(Color.FromArgb(80, 0, 0, 0), 1);
             g.DrawEllipse(pen, 1, 1, 14, 14);
+
+            return OwnIcon(bmp.GetHicon());
+        }
+
+        /// <summary>
+        /// Create download progress icon: solid blue circle with percent number.
+        /// </summary>
+        private static Icon CreateProgressIcon(int percent)
+        {
+            using var bmp = new Bitmap(16, 16);
+            using var g = Graphics.FromImage(bmp);
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.SingleBitPerPixelGridFit;
+            g.Clear(Color.Transparent);
+
+            // Solid blue circle
+            using var bgBrush = new SolidBrush(Color.FromArgb(0, 120, 215));
+            g.FillEllipse(bgBrush, 1, 1, 14, 14);
+
+            // Circle outline
+            using var pen = new Pen(Color.FromArgb(100, 0, 0, 0), 1);
+            g.DrawEllipse(pen, 1, 1, 14, 14);
+
+            // Percent number centered
+            string text = percent < 100 ? percent.ToString() : "ok";
+            using var font = new Font("Segoe UI", 6f, FontStyle.Bold);
+            var size = g.MeasureString(text, font);
+            float x = (16 - size.Width) / 2;
+            float y = (16 - size.Height) / 2;
+            g.DrawString(text, font, Brushes.White, x, y);
 
             return OwnIcon(bmp.GetHicon());
         }

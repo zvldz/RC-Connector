@@ -53,7 +53,7 @@ namespace RcConnector
 
             Text = L.Get("settings_title");
             FormBorderStyle = FormBorderStyle.FixedDialog;
-            StartPosition = FormStartPosition.CenterScreen;
+            StartPosition = FormStartPosition.Manual;
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;

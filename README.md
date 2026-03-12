@@ -11,7 +11,7 @@ Replaces the need for RC Override plugins in Mission Planner or QGroundControl.
 ## Architecture
 
 ```
-TX16S Radio ──CRSF──> ESP32 ──Serial/BLE/WiFi──> [RC-Connector] ──UDP MAVLink──> Drone
+TX16S Radio ──SBUS/CRSF──> ESP32 ──Serial/BLE/WiFi──> [RC-Connector] ──UDP MAVLink──> Drone
 USB Gamepad/Joystick ─────────────────────────>        │
                                                        ├── UDP forward (RC text) ──> other app
                                                        ├── Tray icon (color-coded status)

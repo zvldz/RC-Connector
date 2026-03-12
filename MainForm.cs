@@ -58,6 +58,7 @@ namespace RcConnector
         public event Action? RefreshMenuRequested;
         public event Action? BleScanRequested;
         public event Action? CheckUpdateRequested;
+        public event Action? ForceUpdateRequested;
         public event Action? JoystickMappingRequested;
         public event Action? SettingsRequested;
 
@@ -70,7 +71,7 @@ namespace RcConnector
             BackColor = Theme.FormBg;
             ForeColor = Theme.FormFg;
 
-            Text = L.Get("form_title");
+            Text = $"{L.Get("form_title")} v{AppInfo.Version}";
             FormBorderStyle = Theme.IsDark ? FormBorderStyle.FixedSingle : FormBorderStyle.FixedToolWindow;
             StartPosition = FormStartPosition.Manual;
             ShowInTaskbar = false;
@@ -213,8 +214,8 @@ namespace RcConnector
             };
             _toolbarPanel.Controls.Add(_btnConnect);
             _toolbarPanel.Controls.Add(_btnDisconnect);
-            _toolbarPanel.Controls.Add(_btnSettings);
             _toolbarPanel.Controls.Add(_btnJoyMapping);
+            _toolbarPanel.Controls.Add(_btnSettings);
 
             // --- Tab control ---
             _tabs = Theme.IsDark ? new BorderlessTabControl() : new TabControl();
@@ -377,6 +378,34 @@ namespace RcConnector
             };
             btnCheckUpdate.Click += (s, ev) => CheckUpdateRequested?.Invoke();
 
+            // Hidden Force Update button — revealed by typing "iddqd" on About tab
+            var btnForceUpdate = new Button
+            {
+                Text = "Force Update",
+                AutoSize = true,
+                BackColor = Theme.ButtonBg,
+                ForeColor = Theme.ButtonFg,
+                FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.System,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left,
+                Visible = false,
+            };
+            btnForceUpdate.Click += (s, ev) => ForceUpdateRequested?.Invoke();
+
+            string cheatBuffer = "";
+            const string cheatCode = "iddqd";
+            aboutTab.Enter += (s, ev) => cheatBuffer = "";
+            aboutTab.Leave += (s, ev) => { cheatBuffer = ""; btnForceUpdate.Visible = false; };
+            KeyPreview = true;
+            KeyPress += (s, ev) =>
+            {
+                if (_tabs.SelectedTab != aboutTab) return;
+                cheatBuffer += ev.KeyChar;
+                if (cheatBuffer.Length > cheatCode.Length)
+                    cheatBuffer = cheatBuffer.Substring(cheatBuffer.Length - cheatCode.Length);
+                if (cheatBuffer == cheatCode)
+                    btnForceUpdate.Visible = true;
+            };
+
             aboutTab.Layout += (s, ev) =>
             {
                 int pad = 10;
@@ -391,8 +420,11 @@ namespace RcConnector
                 aboutGrid.Columns[1].Width = gridWidth - gridWidth / 3 - 2;
                 btnCheckUpdate.Location = new Point(pad, aboutGrid.Bottom + pad);
                 btnCheckUpdate.Width = gridWidth;
+                btnForceUpdate.Location = new Point(pad, btnCheckUpdate.Bottom + 4);
+                btnForceUpdate.Width = gridWidth;
             };
 
+            aboutTab.Controls.Add(btnForceUpdate);
             aboutTab.Controls.Add(btnCheckUpdate);
             aboutTab.Controls.Add(aboutGrid);
             aboutTab.Controls.Add(aboutIcon);
