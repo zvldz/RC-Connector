@@ -154,9 +154,9 @@ namespace RcConnector
 
             _btnConnect = new Button
             {
-                Text = L.Get("menu_connect") + " \u25BC",
+                Text = "\uD83D\uDD17 " + L.Get("menu_connect") + " \u25BC",
                 Location = new Point(2, 2),
-                Size = new Size(100, toolbarHeight - 4),
+                Size = new Size(120, toolbarHeight - 4),
                 BackColor = Theme.ButtonBg,
                 ForeColor = Theme.ButtonFg,
                 FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.System,
@@ -170,7 +170,7 @@ namespace RcConnector
             _btnDisconnect = new Button
             {
                 Text = L.Get("menu_disconnect"),
-                Location = new Point(104, 2),
+                Location = new Point(124, 2),
                 Size = new Size(100, toolbarHeight - 4),
                 Visible = false,
                 BackColor = Theme.ButtonBg,
@@ -233,6 +233,7 @@ namespace RcConnector
                 Dock = DockStyle.Fill,
                 AutoScroll = false,
                 Padding = new Padding(4),
+                BorderStyle = Theme.IsDark ? BorderStyle.FixedSingle : BorderStyle.None,
             };
 
             for (int i = 0; i < CHANNEL_COUNT; i++)
@@ -291,6 +292,7 @@ namespace RcConnector
                 Font = new Font("Consolas", LOG_FONT_SIZE),
                 BackColor = Theme.LogBg,
                 ForeColor = Theme.LogFg,
+                BorderStyle = BorderStyle.None,
             };
             _clearLogButton = new Button
             {
@@ -303,7 +305,13 @@ namespace RcConnector
             };
             _clearLogButton.Click += (s, e) => { _logBox.Clear(); _logLineCount = 0; };
 
-            logTab.Controls.Add(_logBox);
+            var logPanel = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BorderStyle = Theme.IsDark ? BorderStyle.FixedSingle : BorderStyle.None,
+            };
+            logPanel.Controls.Add(_logBox);
+            logTab.Controls.Add(logPanel);
             logTab.Controls.Add(_clearLogButton);
             _tabs.TabPages.Add(logTab);
 
@@ -391,10 +399,32 @@ namespace RcConnector
             };
             btnForceUpdate.Click += (s, ev) => ForceUpdateRequested?.Invoke();
 
+            // Hidden Force Update — typing "iddqd" on About tab
             string cheatBuffer = "";
             const string cheatCode = "iddqd";
             aboutTab.Enter += (s, ev) => cheatBuffer = "";
             aboutTab.Leave += (s, ev) => { cheatBuffer = ""; btnForceUpdate.Visible = false; };
+
+            // Easter egg: 5 clicks on icon within 5 sec → open Settings + Joystick Mapping
+            int iconClickCount = 0;
+            DateTime iconClickStart = DateTime.MinValue;
+            aboutIcon.MouseDown += (s, ev) =>
+            {
+                var now = DateTime.UtcNow;
+                if ((now - iconClickStart).TotalSeconds > 5)
+                {
+                    iconClickCount = 1;
+                    iconClickStart = now;
+                    return;
+                }
+                iconClickCount++;
+                if (iconClickCount >= 5)
+                {
+                    iconClickCount = 0;
+                    SettingsRequested?.Invoke();
+                    JoystickMappingRequested?.Invoke();
+                }
+            };
             KeyPreview = true;
             KeyPress += (s, ev) =>
             {
@@ -406,13 +436,18 @@ namespace RcConnector
                     btnForceUpdate.Visible = true;
             };
 
-            aboutTab.Layout += (s, ev) =>
+            var aboutPanel = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BorderStyle = Theme.IsDark ? BorderStyle.FixedSingle : BorderStyle.None,
+            };
+            aboutPanel.Layout += (s, ev) =>
             {
                 int pad = 10;
                 int iconW = aboutIcon.Width;
                 int iconH = aboutIcon.Height;
-                int gridWidth = aboutTab.ClientSize.Width - pad * 2;
-                aboutIcon.Location = new Point((aboutTab.ClientSize.Width - iconW) / 2, pad);
+                int gridWidth = aboutPanel.ClientSize.Width - pad * 2;
+                aboutIcon.Location = new Point((aboutPanel.ClientSize.Width - iconW) / 2, pad);
                 aboutGrid.Location = new Point(pad, iconH + pad * 2);
                 int gridH = aboutGrid.Rows.GetRowsHeight(DataGridViewElementStates.Visible) + 2;
                 aboutGrid.Size = new Size(gridWidth, gridH);
@@ -424,10 +459,11 @@ namespace RcConnector
                 btnForceUpdate.Width = gridWidth;
             };
 
-            aboutTab.Controls.Add(btnForceUpdate);
-            aboutTab.Controls.Add(btnCheckUpdate);
-            aboutTab.Controls.Add(aboutGrid);
-            aboutTab.Controls.Add(aboutIcon);
+            aboutPanel.Controls.Add(btnForceUpdate);
+            aboutPanel.Controls.Add(btnCheckUpdate);
+            aboutPanel.Controls.Add(aboutGrid);
+            aboutPanel.Controls.Add(aboutIcon);
+            aboutTab.Controls.Add(aboutPanel);
             _tabs.TabPages.Add(aboutTab);
 
             // Layout (reverse order: last added Dock.Top renders first)
