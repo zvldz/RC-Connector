@@ -162,7 +162,7 @@ namespace RcConnector
             _txtRcForwardIp = new TextBox
             {
                 Location = new Point(controlX, y),
-                Width = 100,
+                Width = 120,
                 Text = settings.RcForwardIp,
                 BackColor = Theme.InputBg,
                 ForeColor = Theme.InputFg,
@@ -170,10 +170,10 @@ namespace RcConnector
             };
             Controls.Add(_txtRcForwardIp);
 
-            AddLabel(L.Get("settings_rc_forward_port"), 225, y);
+            AddLabel(L.Get("settings_rc_forward_port"), 248, y);
             _txtRcForwardPort = new TextBox
             {
-                Location = new Point(305, y),
+                Location = new Point(285, y),
                 Width = 50,
                 Text = settings.RcForwardPort.ToString(),
                 BackColor = Theme.InputBg,
@@ -312,7 +312,7 @@ namespace RcConnector
             Controls.Add(btnApply);
             Controls.Add(btnClose);
 
-            ClientSize = new Size(370, y + 32);
+            ClientSize = new Size(390, y + 32);
 
             ResumeLayout(false);
             PerformLayout();

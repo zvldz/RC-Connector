@@ -14,7 +14,10 @@ InstallDirRegKey HKLM "Software\RC-Connector" "InstallDir"
 RequestExecutionLevel admin
 
 ; --- Version info ---
-!define VERSION "0.3.2"
+; VERSION is passed from CI via /DVERSION=x.y.z, fallback for local builds
+!ifndef VERSION
+  !define VERSION "0.0.0"
+!endif
 VIProductVersion "${VERSION}.0"
 VIAddVersionKey "ProductName" "RC-Connector"
 VIAddVersionKey "FileVersion" "${VERSION}"

@@ -29,8 +29,15 @@ jobs:
       - name: Install NSIS
         run: choco install nsis -y
 
+      - name: Extract version from csproj
+        id: version
+        run: |
+          $xml = [xml](Get-Content RC-Connector.csproj)
+          $ver = $xml.Project.PropertyGroup.Version
+          echo "VERSION=$ver" >> $env:GITHUB_OUTPUT
+
       - name: Build NSIS installer
-        run: '& "${env:ProgramFiles(x86)}\NSIS\makensis.exe" installer.nsi'
+        run: '& "${env:ProgramFiles(x86)}\NSIS\makensis.exe" /DVERSION=${{ steps.version.outputs.VERSION }} installer.nsi'
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

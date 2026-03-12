@@ -46,6 +46,7 @@ namespace RcConnector
         private readonly Button _btnConnect;
         private readonly Button _btnDisconnect;
         private readonly Button _btnJoyMapping;
+        private readonly Button _btnSettings;
         private readonly ContextMenuStrip _connectDropdown;
 
         /// <summary>Events for connect/disconnect actions.</summary>
@@ -58,6 +59,7 @@ namespace RcConnector
         public event Action? BleScanRequested;
         public event Action? CheckUpdateRequested;
         public event Action? JoystickMappingRequested;
+        public event Action? SettingsRequested;
 
         public MainForm(AppSettings settings)
         {
@@ -189,6 +191,19 @@ namespace RcConnector
             };
             _btnJoyMapping.Click += (s, e) => JoystickMappingRequested?.Invoke();
 
+            _btnSettings = new Button
+            {
+                Text = "\u2699", // gear emoji ⚙
+                Font = new Font("Segoe UI Symbol", 12f, FontStyle.Bold),
+                Dock = DockStyle.Right,
+                Width = 30,
+                BackColor = Theme.ButtonBg,
+                ForeColor = Theme.ButtonFg,
+                FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.System,
+                Padding = Padding.Empty,
+            };
+            _btnSettings.Click += (s, e) => SettingsRequested?.Invoke();
+
             _toolbarPanel = new Panel
             {
                 Dock = DockStyle.Top,
@@ -198,6 +213,7 @@ namespace RcConnector
             };
             _toolbarPanel.Controls.Add(_btnConnect);
             _toolbarPanel.Controls.Add(_btnDisconnect);
+            _toolbarPanel.Controls.Add(_btnSettings);
             _toolbarPanel.Controls.Add(_btnJoyMapping);
 
             // --- Tab control ---

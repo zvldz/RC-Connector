@@ -10,6 +10,7 @@ using RcConnector.MAVLink;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using RcConnector.Transport;
+using System.Runtime.InteropServices;
 
 namespace RcConnector
 {
@@ -753,8 +754,9 @@ namespace RcConnector
                 IPAddress.TryParse(_settings.RcForwardIp, out var ip) &&
                 _settings.RcForwardPort > 0)
             {
-                _rcForwardClient = new UdpClient();
+                _rcForwardClient = new UdpClient(ip.AddressFamily);
                 _rcForwardEndpoint = new IPEndPoint(ip, _settings.RcForwardPort);
+                Log(L.Get("log_rc_forward_started", _settings.RcForwardIp, _settings.RcForwardPort));
             }
         }
 
@@ -846,6 +848,7 @@ namespace RcConnector
             _mainForm.ConnectUdpRequested += () => ConnectUdp();
             _mainForm.ConnectJoystickRequested += (id, name) => ConnectJoystick(id, name);
             _mainForm.JoystickMappingRequested += () => OnJoystickMappingClick(null, EventArgs.Empty);
+            _mainForm.SettingsRequested += () => OnSettingsClick(null, EventArgs.Empty);
             _mainForm.DisconnectRequested += () => DoDisconnect();
             _mainForm.RefreshMenuRequested += () => UpdateMainFormToolbar();
             _mainForm.BleScanRequested += async () =>
@@ -933,6 +936,21 @@ namespace RcConnector
         // Icon generation (colored circle)
         // ---------------------------------------------------------------
 
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool DestroyIcon(IntPtr hIcon);
+
+        /// <summary>
+        /// Create icon from HICON, properly transferring ownership to avoid GDI handle leak.
+        /// Icon.FromHandle() does not own the HICON — clone it and destroy the original.
+        /// </summary>
+        private static Icon OwnIcon(IntPtr hIcon)
+        {
+            using var temp = Icon.FromHandle(hIcon);
+            var clone = (Icon)temp.Clone();
+            DestroyIcon(hIcon);
+            return clone;
+        }
+
         private static Icon CreateColorIcon(Color color)
         {
             using var bmp = new Bitmap(16, 16);
@@ -946,7 +964,7 @@ namespace RcConnector
             using var pen = new Pen(Color.FromArgb(80, 0, 0, 0), 1);
             g.DrawEllipse(pen, 1, 1, 14, 14);
 
-            return Icon.FromHandle(bmp.GetHicon());
+            return OwnIcon(bmp.GetHicon());
         }
 
         /// <summary>
@@ -978,7 +996,7 @@ namespace RcConnector
             using var pen = new Pen(Color.FromArgb(80, 0, 0, 0), 1);
             g.DrawEllipse(pen, 1, 1, 14, 14);
 
-            return Icon.FromHandle(bmp.GetHicon());
+            return OwnIcon(bmp.GetHicon());
         }
     }
 }

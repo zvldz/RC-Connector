@@ -347,18 +347,7 @@ namespace RcConnector.Transport
             try
             {
                 if (_txCharacteristic != null)
-                {
                     _txCharacteristic.ValueChanged -= Characteristic_ValueChanged;
-
-                    // Unsubscribe only if still connected
-                    try
-                    {
-                        if (_device?.ConnectionStatus == BluetoothConnectionStatus.Connected)
-                            _ = _txCharacteristic.WriteClientCharacteristicConfigurationDescriptorAsync(
-                                GattClientCharacteristicConfigurationDescriptorValue.None);
-                    }
-                    catch { }
-                }
             }
             catch { }
 
