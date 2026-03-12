@@ -45,19 +45,6 @@ USB Gamepad/Joystick ───────────────────�
 - ESP32 with compatible firmware sending `RC 1500,1500,...\n` format, **or** any USB joystick/gamepad
 - No additional runtime required (self-contained build)
 
-## Build
-
-```bash
-# Development
-dotnet build
-dotnet run
-
-# Self-contained publish (for NSIS installer)
-dotnet publish -c Release -r win-x64 --self-contained
-```
-
-The GitHub Actions release workflow automatically builds the NSIS installer on tag push (`v*`).
-
 ## ESP32 Protocol
 
 The ESP32 sends RC channel data as text lines:
