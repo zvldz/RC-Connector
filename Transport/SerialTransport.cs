@@ -7,20 +7,21 @@ using Timer = System.Threading.Timer;
 namespace RcConnector.Transport
 {
     /// <summary>
-    /// Serial COM port transport with ESP32 DTR/RTS fix.
-    /// Ported from RcOverride_v2_BLE.cs EnsurePort() / ClosePort().
+    /// Serial COM port transport with ESP32 DTR/RTS fix and auto-reconnect.
     /// </summary>
     internal sealed class SerialTransport : ITransport
     {
         private const int BAUD = 115200;
         private const int DATA_TIMEOUT_MS = 3000;
-        private const int PORT_RETRY_INTERVAL_MS = 2000;
+        private const int RECONNECT_INTERVAL_MS = 2000;
 
         private SerialPort? _port;
         private readonly string _portName;
         private readonly bool _dtrRtsFix;
         private DateTime _lastDataTime = DateTime.MinValue;
         private Timer? _watchdog;
+        private Timer? _reconnectTimer;
+        private bool _shouldReconnect;
 
         public string DisplayName => _portName;
         public bool IsConnected => _port != null && _port.IsOpen;
@@ -36,8 +37,44 @@ namespace RcConnector.Transport
 
         public void Connect()
         {
+            _shouldReconnect = true;
+            TryOpen();
+
+            // Reconnect timer — retries if port closed
+            _reconnectTimer = new Timer(ReconnectCallback, null, RECONNECT_INTERVAL_MS, RECONNECT_INTERVAL_MS);
+        }
+
+        public void Disconnect()
+        {
+            _shouldReconnect = false;
+            _reconnectTimer?.Dispose();
+            _reconnectTimer = null;
+            CloseInternal();
+            Console.WriteLine("[Serial] Disconnected " + _portName);
+        }
+
+        public void Dispose()
+        {
+            _shouldReconnect = false;
+            _reconnectTimer?.Dispose();
+            _reconnectTimer = null;
+            CloseInternal();
+        }
+
+        /// <summary>
+        /// Get available COM port names.
+        /// </summary>
+        public static string[] GetPortNames()
+        {
+            var ports = SerialPort.GetPortNames().Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            Array.Sort(ports, StringComparer.OrdinalIgnoreCase);
+            return ports;
+        }
+
+        private bool TryOpen()
+        {
             if (IsConnected)
-                return;
+                return true;
 
             try
             {
@@ -66,34 +103,23 @@ namespace RcConnector.Transport
                 _watchdog = new Timer(WatchdogCallback, null, DATA_TIMEOUT_MS, DATA_TIMEOUT_MS);
 
                 Console.WriteLine("[Serial] Opened " + _portName);
+                return true;
             }
             catch (Exception ex)
             {
                 Console.WriteLine("[Serial] Failed to open " + _portName + ": " + ex.Message);
                 CloseInternal();
-                throw;
+                return false;
             }
         }
 
-        public void Disconnect()
+        private void ReconnectCallback(object? state)
         {
-            Console.WriteLine("[Serial] Disconnecting " + _portName);
-            CloseInternal();
-        }
+            if (!_shouldReconnect || IsConnected)
+                return;
 
-        public void Dispose()
-        {
-            CloseInternal();
-        }
-
-        /// <summary>
-        /// Get available COM port names.
-        /// </summary>
-        public static string[] GetPortNames()
-        {
-            var ports = SerialPort.GetPortNames().Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-            Array.Sort(ports, StringComparer.OrdinalIgnoreCase);
-            return ports;
+            Console.WriteLine("[Serial] Reconnecting " + _portName + "...");
+            TryOpen();
         }
 
         private void Port_DataReceived(object sender, SerialDataReceivedEventArgs e)
@@ -129,6 +155,7 @@ namespace RcConnector.Transport
                     Console.WriteLine("[Serial] Data timeout (" + (int)idle + "ms), closing port");
                     CloseInternal();
                     Disconnected?.Invoke("Data timeout on " + _portName);
+                    // ReconnectCallback will pick up and retry
                 }
             }
         }

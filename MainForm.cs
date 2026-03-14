@@ -702,23 +702,24 @@ namespace RcConnector
         {
             _connectDropdown.Items.Clear();
 
-            // BLE devices
+            // BLE devices — refresh first, then devices
             var bleMenu = new ToolStripMenuItem("BLE");
-            foreach (var (id, name) in bleDevices)
-            {
-                var item = new ToolStripMenuItem(name);
-                if (id == settings.BleDeviceId)
-                    item.Font = new Font(item.Font, FontStyle.Bold);
-                string devId = id, devName = name;
-                item.Click += (s, e) => ConnectBleRequested?.Invoke(devId, devName);
-                bleMenu.DropDownItems.Add(item);
-            }
-            if (bleDevices.Count == 0)
-                bleMenu.DropDownItems.Add(new ToolStripMenuItem("—") { Enabled = false });
-            bleMenu.DropDownItems.Add(new ToolStripSeparator());
             var refreshItem = new ToolStripMenuItem(L.Get("menu_refresh"));
             refreshItem.Click += (s, e) => BleScanRequested?.Invoke();
             bleMenu.DropDownItems.Add(refreshItem);
+            if (bleDevices.Count > 0)
+            {
+                bleMenu.DropDownItems.Add(new ToolStripSeparator());
+                foreach (var (id, name) in bleDevices)
+                {
+                    var item = new ToolStripMenuItem(name);
+                    if (id == settings.BleDeviceId)
+                        item.Font = new Font(item.Font, FontStyle.Bold);
+                    string devId = id, devName = name;
+                    item.Click += (s, e) => ConnectBleRequested?.Invoke(devId, devName);
+                    bleMenu.DropDownItems.Add(item);
+                }
+            }
             _connectDropdown.Items.Add(bleMenu);
 
             // COM ports

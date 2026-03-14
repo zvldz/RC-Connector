@@ -26,10 +26,14 @@ namespace RcConnector.Transport
         private readonly string _deviceName;
         private readonly int _pollIntervalMs;
         private readonly JoystickMapping _mapping;
+        private const int RECONNECT_INTERVAL_MS = 2000;
+
         private Timer? _pollTimer;
         private Timer? _watchdog;
+        private Timer? _reconnectTimer;
         private DateTime _lastDataTime = DateTime.MinValue;
         private bool _connected;
+        private bool _shouldReconnect;
 
         public string DisplayName => _deviceName;
         public bool IsConnected => _connected;
@@ -47,8 +51,34 @@ namespace RcConnector.Transport
 
         public void Connect()
         {
+            _shouldReconnect = true;
+            TryOpen();
+
+            // Reconnect timer — retries if device disconnected
+            _reconnectTimer = new Timer(ReconnectCallback, null, RECONNECT_INTERVAL_MS, RECONNECT_INTERVAL_MS);
+        }
+
+        public void Disconnect()
+        {
+            _shouldReconnect = false;
+            _reconnectTimer?.Dispose();
+            _reconnectTimer = null;
+            CloseInternal();
+            Console.WriteLine($"[JOY] Disconnected {_deviceName}");
+        }
+
+        public void Dispose()
+        {
+            _shouldReconnect = false;
+            _reconnectTimer?.Dispose();
+            _reconnectTimer = null;
+            CloseInternal();
+        }
+
+        private bool TryOpen()
+        {
             if (_connected)
-                return;
+                return true;
 
             CloseInternal();
 
@@ -56,7 +86,10 @@ namespace RcConnector.Transport
             var caps = new JOYCAPS();
             uint result = joyGetDevCapsW((uint)_deviceId, ref caps, (uint)Marshal.SizeOf<JOYCAPS>());
             if (result != 0)
-                throw new InvalidOperationException($"Joystick {_deviceId} not available (error {result})");
+            {
+                Console.WriteLine($"[JOY] Device {_deviceId} not available (error {result})");
+                return false;
+            }
 
             _connected = true;
             _lastDataTime = DateTime.UtcNow;
@@ -65,17 +98,16 @@ namespace RcConnector.Transport
             _watchdog = new Timer(WatchdogCallback, null, DATA_TIMEOUT_MS, DATA_TIMEOUT_MS);
 
             Console.WriteLine($"[JOY] Connected to {_deviceName} (id={_deviceId}, poll={_pollIntervalMs}ms)");
+            return true;
         }
 
-        public void Disconnect()
+        private void ReconnectCallback(object? state)
         {
-            Console.WriteLine($"[JOY] Disconnecting {_deviceName}");
-            CloseInternal();
-        }
+            if (!_shouldReconnect || _connected)
+                return;
 
-        public void Dispose()
-        {
-            CloseInternal();
+            Console.WriteLine($"[JOY] Reconnecting {_deviceName}...");
+            TryOpen();
         }
 
         private void PollCallback(object? state)

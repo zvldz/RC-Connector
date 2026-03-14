@@ -31,6 +31,9 @@ namespace RcConnector
         private readonly TextBox _txtRcForwardIp;
         private readonly TextBox _txtRcForwardPort;
 
+        // Telemetry
+        private readonly CheckBox _chkIgnoreDrone;
+
         // UI
         private readonly ComboBox _cboLanguage;
         private readonly ComboBox _cboTheme;
@@ -189,6 +192,20 @@ namespace RcConnector
                 _txtRcForwardIp.Enabled = _chkRcForward.Checked;
                 _txtRcForwardPort.Enabled = _chkRcForward.Checked;
             };
+
+            y += 24;
+
+            // --- Ignore drone telemetry ---
+            _chkIgnoreDrone = new CheckBox
+            {
+                Text = L.Get("settings_ignore_drone"),
+                Location = new Point(10, y),
+                AutoSize = true,
+                Checked = settings.IgnoreDroneTelemetry,
+            };
+            Controls.Add(_chkIgnoreDrone);
+            y += 15;
+            AddHint(L.Get("settings_ignore_drone_hint"), 28, y);
 
             y += 24;
 
@@ -375,6 +392,7 @@ namespace RcConnector
                 RcForwardIp = _txtRcForwardIp.Text.Trim(),
                 RcForwardPort = int.TryParse(_txtRcForwardPort.Text, out int fp) && fp > 0 && fp <= 65535
                     ? fp : _settings.RcForwardPort,
+                IgnoreDroneTelemetry = _chkIgnoreDrone.Checked,
                 AdaptiveDpi = true,
                 Language = lang,
                 ThemeMode = _cboTheme.SelectedIndex switch { 1 => "light", 2 => "dark", _ => "auto" },

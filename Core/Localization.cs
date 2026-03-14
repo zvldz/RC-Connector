@@ -102,6 +102,8 @@ namespace RcConnector.Core
             ["settings_rc_forward_ip"] = "Forward IP:",
             ["settings_rc_forward_port"] = "Port:",
             ["settings_rc_forward_hint"] = "\u2139 sends \"RC 1500,1500,...\" text",
+            ["settings_ignore_drone"] = "Ignore drone telemetry",
+            ["settings_ignore_drone_hint"] = "\u2139 hide drone status from tray icon",
             ["settings_apply"] = "Apply",
             ["settings_close"] = "Close",
 
@@ -235,6 +237,8 @@ namespace RcConnector.Core
             ["settings_rc_forward_ip"] = "IP пересилання:",
             ["settings_rc_forward_port"] = "Порт:",
             ["settings_rc_forward_hint"] = "\u2139 надсилає \"RC 1500,1500,...\" текстом",
+            ["settings_ignore_drone"] = "Ігнорувати телеметрію дрона",
+            ["settings_ignore_drone_hint"] = "\u2139 не показувати стан дрона в іконці",
             ["settings_apply"] = "Застосувати",
             ["settings_close"] = "Закрити",
 

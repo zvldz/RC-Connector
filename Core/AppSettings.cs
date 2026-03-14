@@ -40,6 +40,9 @@ namespace RcConnector.Core
         // Serial
         public bool SerialDtrRts { get; set; } = true;
 
+        // Telemetry
+        public bool IgnoreDroneTelemetry { get; set; } = false;
+
         // UI
         public int WindowX { get; set; } = -1;
         public int WindowY { get; set; } = -1;

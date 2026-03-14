@@ -115,11 +115,15 @@ namespace RcConnector
             // Tray icon
             _trayIcon = new NotifyIcon
             {
-                Icon = CreateColorIcon(Color.Gray),
                 Text = L.Get("tip_disconnected"),
                 ContextMenuStrip = _contextMenu,
                 Visible = true,
             };
+            var grayKey = Color.Gray.ToArgb().ToString();
+            var grayIcon = CreateColorIcon(Color.Gray);
+            _iconCache[grayKey] = grayIcon;
+            _trayIcon.Icon = grayIcon;
+            _trayIcon.Tag = grayKey;
             _trayIcon.MouseClick += (s, e) => { if (e.Button == MouseButtons.Left) ToggleMainForm(); };
             _trayIcon.DoubleClick += (s, e) => ToggleMainForm();
 
@@ -247,8 +251,9 @@ namespace RcConnector
             bool bleAuthFailed = _transport is BleTransport ble && ble.AuthFailed;
             bool hasRcData = _lastRcData != DateTime.MinValue &&
                              (now - _lastRcData).TotalMilliseconds <= LED_TIMEOUT_MS;
+            bool droneConnected = _mavlink.DroneConnected && !_settings.IgnoreDroneTelemetry;
 
-            if (!_connected && !bleAuthFailed && _mavlink.DroneConnected)
+            if (!_connected && !bleAuthFailed && droneConnected)
             {
                 tooltip = L.Get("tip_disconnected_drone_ok");
                 UpdateTrayIcon(Color.Gray, Color.LimeGreen, tooltip);
@@ -269,19 +274,19 @@ namespace RcConnector
                 tooltip = L.Get("tip_connecting");
                 UpdateTrayIcon(blink ? Color.Red : Color.Gray, tooltip);
             }
-            else if (hasRcData && _mavlink.DroneConnected)
+            else if (hasRcData && (droneConnected || _settings.IgnoreDroneTelemetry))
             {
-                tooltip = _mavlink.DroneArmed
+                tooltip = _mavlink.DroneArmed && droneConnected
                     ? L.Get("tip_ok_armed", DataRateHz.ToString("0"))
                     : L.Get("tip_ok", DataRateHz.ToString("0"));
                 UpdateTrayIcon(Color.LimeGreen, tooltip);
             }
-            else if (hasRcData && !_mavlink.DroneConnected)
+            else if (hasRcData && !droneConnected)
             {
                 tooltip = L.Get("tip_rc_ok_no_drone");
                 UpdateTrayIcon(Color.LimeGreen, Color.FromArgb(160, 50, 30), tooltip);
             }
-            else if (!hasRcData && _mavlink.DroneConnected)
+            else if (!hasRcData && droneConnected)
             {
                 tooltip = L.Get("tip_no_rc_drone_ok");
                 UpdateTrayIcon(Color.FromArgb(160, 50, 30), Color.LimeGreen, tooltip);
@@ -298,8 +303,8 @@ namespace RcConnector
                 _transport?.DisplayName ?? "",
                 DataRateHz,
                 hasRcData,
-                _mavlink.DroneConnected,
-                _mavlink.DroneArmed,
+                droneConnected,
+                _mavlink.DroneArmed && droneConnected,
                 _mavlink.DroneCustomMode);
         }
 
@@ -314,6 +319,10 @@ namespace RcConnector
             UpdateTrayIconInternal(colorKey, tooltip, () => CreateSplitIcon(leftColor, rightColor));
         }
 
+        // Icon cache — never dispose tray icons, Shell holds native HICON references
+        // and disposing causes heap corruption (0xc0000374) after long uptime.
+        private readonly Dictionary<string, Icon> _iconCache = new();
+
         private void UpdateTrayIconInternal(string colorKey, string tooltip, Func<Icon> createIcon)
         {
             _trayIcon.Text = tooltip.Length > 63 ? tooltip.Substring(0, 63) : tooltip;
@@ -322,10 +331,13 @@ namespace RcConnector
             var currentTag = _trayIcon.Tag as string;
             if (currentTag != colorKey)
             {
-                var oldIcon = _trayIcon.Icon;
-                _trayIcon.Icon = createIcon();
+                if (!_iconCache.TryGetValue(colorKey, out var icon))
+                {
+                    icon = createIcon();
+                    _iconCache[colorKey] = icon;
+                }
+                _trayIcon.Icon = icon;
                 _trayIcon.Tag = colorKey;
-                oldIcon?.Dispose();
             }
         }
 
@@ -396,6 +408,7 @@ namespace RcConnector
                 _settings.RcForwardEnabled = newSettings.RcForwardEnabled;
                 _settings.RcForwardIp = newSettings.RcForwardIp;
                 _settings.RcForwardPort = newSettings.RcForwardPort;
+                _settings.IgnoreDroneTelemetry = newSettings.IgnoreDroneTelemetry;
                 _settings.AdaptiveDpi = newSettings.AdaptiveDpi;
                 _settings.Language = newSettings.Language;
                 _settings.ThemeMode = newSettings.ThemeMode;
@@ -527,10 +540,14 @@ namespace RcConnector
 
         private void UpdateDownloadIcon(int percent)
         {
-            var oldIcon = _trayIcon.Icon;
-            _trayIcon.Icon = CreateProgressIcon(percent);
-            _trayIcon.Tag = "download";
-            oldIcon?.Dispose();
+            string key = "dl_" + percent;
+            if (!_iconCache.TryGetValue(key, out var icon))
+            {
+                icon = CreateProgressIcon(percent);
+                _iconCache[key] = icon;
+            }
+            _trayIcon.Icon = icon;
+            _trayIcon.Tag = key;
         }
 
         private void OnExitClick(object? sender, EventArgs e)
@@ -561,19 +578,6 @@ namespace RcConnector
                 if (_bleScanInProgress && e.CloseReason == ToolStripDropDownCloseReason.ItemClicked)
                     e.Cancel = true;
             };
-            if (_cachedBleDevices.Count > 0)
-            {
-                foreach (var (id, name) in _cachedBleDevices)
-                {
-                    var item = new ToolStripMenuItem(name);
-                    if (id == _settings.BleDeviceId)
-                        item.Font = new Font(item.Font, FontStyle.Bold);
-                    string devId = id, devName = name; // capture
-                    item.Click += (s, e) => ConnectBle(devId, devName);
-                    bleMenu.DropDownItems.Add(item);
-                }
-                bleMenu.DropDownItems.Add(new ToolStripSeparator());
-            }
             var refreshItem = new ToolStripMenuItem(L.Get("menu_refresh"));
             refreshItem.MouseDown += (s, e) => _bleScanInProgress = true;
             refreshItem.Click += async (s, e) =>
@@ -586,8 +590,11 @@ namespace RcConnector
                     _cachedBleDevices = await BleTransport.GetPairedNusDevicesAsync();
                     Log(L.Get("log_ble_found", _cachedBleDevices.Count));
 
-                    // Rebuild BLE submenu items (keep refreshItem at bottom)
+                    // Rebuild BLE submenu: refresh first, then devices
                     bleMenu.DropDownItems.Clear();
+                    bleMenu.DropDownItems.Add(refreshItem);
+                    if (_cachedBleDevices.Count > 0)
+                        bleMenu.DropDownItems.Add(new ToolStripSeparator());
                     foreach (var (id, name) in _cachedBleDevices)
                     {
                         var devItem = new ToolStripMenuItem(name);
@@ -597,18 +604,28 @@ namespace RcConnector
                         devItem.Click += (s2, e2) => ConnectBle(devId, devName);
                         bleMenu.DropDownItems.Add(devItem);
                     }
-                    if (_cachedBleDevices.Count > 0)
-                        bleMenu.DropDownItems.Add(new ToolStripSeparator());
                 }
                 finally
                 {
                     refreshItem.Text = L.Get("menu_refresh");
                     refreshItem.Enabled = true;
-                    bleMenu.DropDownItems.Add(refreshItem);
                     _bleScanInProgress = false;
                 }
             };
             bleMenu.DropDownItems.Add(refreshItem);
+            if (_cachedBleDevices.Count > 0)
+            {
+                bleMenu.DropDownItems.Add(new ToolStripSeparator());
+                foreach (var (id, name) in _cachedBleDevices)
+                {
+                    var item = new ToolStripMenuItem(name);
+                    if (id == _settings.BleDeviceId)
+                        item.Font = new Font(item.Font, FontStyle.Bold);
+                    string devId = id, devName = name; // capture
+                    item.Click += (s, e) => ConnectBle(devId, devName);
+                    bleMenu.DropDownItems.Add(item);
+                }
+            }
             _connectMenu.DropDownItems.Add(bleMenu);
 
             // --- COM submenu ---
@@ -665,28 +682,19 @@ namespace RcConnector
 
         private void ConnectSerial(string portName)
         {
-            try
-            {
-                _transport?.Dispose();
-                var serial = new SerialTransport(portName, dtrRtsFix: !_settings.SerialDtrRts);
-                WireTransport(serial);
-                _transport = serial;
-                _transport.Connect();
+            _transport?.Dispose();
+            var serial = new SerialTransport(portName, dtrRtsFix: !_settings.SerialDtrRts);
+            WireTransport(serial);
+            _transport = serial;
+            _transport.Connect(); // TryOpen + reconnect timer, never throws
 
-                _connected = true;
-                _settings.SourceMode = SourceMode.COM;
-                _settings.ComPort = portName;
-                _settings.Save();
+            _connected = true;
+            _settings.SourceMode = SourceMode.COM;
+            _settings.ComPort = portName;
+            _settings.Save();
 
-                Log(L.Get("log_connected_to", portName));
-                UpdateMainFormToolbar();
-            }
-            catch (Exception ex)
-            {
-                Log(L.Get("log_connect_failed", ex.Message));
-                _connected = false;
-                UpdateMainFormToolbar();
-            }
+            Log(L.Get("log_connected_to", portName));
+            UpdateMainFormToolbar();
         }
 
         private void ConnectBle(string deviceId, string deviceName)
@@ -746,31 +754,22 @@ namespace RcConnector
 
         private void ConnectJoystick(int deviceId, string deviceName)
         {
-            try
-            {
-                _transport?.Dispose();
-                int pollMs = 1000 / Math.Clamp(_settings.JoystickPollHz, 10, 50);
-                var mapping = _settings.GetJoystickMapping(deviceName);
-                var joy = new JoystickTransport(deviceId, deviceName, pollMs, mapping);
-                WireTransport(joy);
-                _transport = joy;
-                _transport.Connect();
+            _transport?.Dispose();
+            int pollMs = 1000 / Math.Clamp(_settings.JoystickPollHz, 10, 50);
+            var mapping = _settings.GetJoystickMapping(deviceName);
+            var joy = new JoystickTransport(deviceId, deviceName, pollMs, mapping);
+            WireTransport(joy);
+            _transport = joy;
+            _transport.Connect(); // TryOpen + reconnect timer, never throws
 
-                _connected = true;
-                _settings.SourceMode = SourceMode.Joystick;
-                _settings.JoystickDeviceId = deviceId;
-                _settings.JoystickDeviceName = deviceName;
-                _settings.Save();
+            _connected = true;
+            _settings.SourceMode = SourceMode.Joystick;
+            _settings.JoystickDeviceId = deviceId;
+            _settings.JoystickDeviceName = deviceName;
+            _settings.Save();
 
-                Log(L.Get("log_joystick_connected", deviceName));
-                UpdateMainFormToolbar();
-            }
-            catch (Exception ex)
-            {
-                Log(L.Get("log_connect_failed", ex.Message));
-                _connected = false;
-                UpdateMainFormToolbar();
-            }
+            Log(L.Get("log_joystick_connected", deviceName));
+            UpdateMainFormToolbar();
         }
 
         private void WireTransport(ITransport transport)
