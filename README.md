@@ -1,6 +1,6 @@
 # RC-Connector
 
-Standalone Windows tray application that bridges an RC transmitter (via ESP32 or USB joystick) to an ArduPilot drone via MAVLink RC_CHANNELS_OVERRIDE.
+Standalone Windows tray application that bridges an RC transmitter (via ESP32, LUA script, or USB joystick) to an ArduPilot drone via MAVLink RC_CHANNELS_OVERRIDE.
 
 Replaces the need for RC Override plugins in Mission Planner or QGroundControl.
 
@@ -11,17 +11,23 @@ Replaces the need for RC Override plugins in Mission Planner or QGroundControl.
 ## Architecture
 
 ```
-TX16S Radio ──SBUS/CRSF──> ESP32 ──Serial/BLE/WiFi──> [RC-Connector] ──UDP MAVLink──> Drone
-USB Gamepad/Joystick ─────────────────────────>        │
-                                                       ├── UDP forward (RC text) ──> other app
-                                                       ├── Tray icon (color-coded status)
-                                                       └── Mini window (channels, log)
+TX Radio ──SBUS/CRSF──> ESP32 ──Serial/BLE/WiFi──┐
+TX Radio ──LUA script──> USB Serial (VCP) ────────┤
+USB Gamepad/Joystick ─────────────────────────────┤
+                                                  ▼
+                                           [RC-Connector]
+                                                  │
+                              ┌────────────────────┼────────────────────────┐
+                              ▼                    ▼                        ▼
+                    UDP MAVLink ──> Drone   UDP forward ──> app    Tray icon + window
 ```
 
 ## Features
 
 - **Four transport sources**: Serial (COM), BLE (Nordic UART Service), UDP (WiFi), USB Joystick
+- **Dual data format**: ESP-Bridge (`RC 1500,...`) and R2D2 (`$val,...`) with auto-detection
 - **USB Joystick support**: direct gamepad/joystick input via winmm.dll — no ESP32 needed
+- **LUA scripts** for EdgeTX radios: send RC channels via USB Serial (VCP) directly from transmitter
 - **Joystick channel mapping**: 8 RC channels, each assignable to axis or button group with live PWM preview
 - **Button groups**: assign multiple gamepad buttons to one RC channel — PWM positions auto-distributed
 - **MAVLink output**: HEARTBEAT + RC_CHANNELS_OVERRIDE (16 channels) via UDP
@@ -42,20 +48,33 @@ USB Gamepad/Joystick ───────────────────�
 ## Requirements
 
 - Windows 10+ (x64)
-- ESP32 with compatible firmware sending `RC 1500,1500,...\n` format, **or** any USB joystick/gamepad
+- ESP32 with compatible firmware, **or** EdgeTX radio with LUA script (USB VCP), **or** any USB joystick/gamepad
 - No additional runtime required (self-contained build)
 
-## ESP32 Protocol
+## Data Formats
 
-The ESP32 sends RC channel data as text lines:
+RC-Connector supports two input formats (auto-detected by prefix, configurable in Settings):
 
+### ESP-Bridge format
 ```
 RC 1500,1500,1000,1500,1500,1500,1500,1500,1500,1500,1500,1500,1500,1500,1500,1500\n
 ```
-
 - 16 PWM values (800-2200), comma-separated
-- Baud: 115200 (Serial), BLE NUS, or UDP
-- Rate: 10-50 Hz (controlled by ESP32)
+- Used by ESP32 firmware ([ESP32-UART-Bridge](https://github.com/zvldz/ESP32-UART-Bridge))
+
+### R2D2 format
+```
+$val,val,val,...,\r\n
+```
+- 24 raw values (-1024..+1024) from `getOutputValue()`
+- Converted to PWM: `(raw / 2) + 1500`, clamped 1000-2000
+- Used by EdgeTX LUA scripts (see `lua/` folder)
+
+### Transport
+- Serial: 115200 baud
+- BLE: Nordic UART Service (NUS)
+- UDP: WiFi
+- Output rate throttled to configured send rate (10-50 Hz, default 20)
 
 ## MAVLink Setup
 
@@ -67,9 +86,20 @@ RC-Connector operates in **passive mode**:
 
 **Important**: `SYSID_MYGCS` on the drone must match RC-Connector's System ID (default `255`, configurable in Settings).
 
+## LUA Scripts
+
+EdgeTX LUA scripts for sending RC channels via USB Serial (VCP) directly from the transmitter — no ESP32 needed.
+
+| Script | Description |
+|--------|-------------|
+| `r2d2-usb-vcp.lua` | Original by Apachi Team. Works on all radios (B&W on color screens) |
+| `r2d2-usb-vcp-tx15.lua` | Color mod with LVGL API for EdgeTX 3.0+ (dynamic channel bars) |
+
+Copy to `/SCRIPTS/TOOLS/` on the radio's SD card. See [`lua/README.md`](lua/README.md) for details.
+
 ## Related
 
-ESP32 firmware: [ESP32-UART-Bridge](https://github.com/zvldz/ESP32-UART-Bridge) — RC transmitter to Serial/BLE/WiFi bridge for use with this app.
+- ESP32 firmware: [ESP32-UART-Bridge](https://github.com/zvldz/ESP32-UART-Bridge) — RC transmitter to Serial/BLE/WiFi bridge for use with this app
 
 ## License
 
