@@ -11,7 +11,7 @@ Replaces the need for RC Override plugins in Mission Planner or QGroundControl.
 ## Architecture
 
 ```
-TX Radio ──SBUS/CRSF──> ESP32 ──Serial/BLE/WiFi──┐
+TX Radio ──SBUS/CRSF──> ESP32 ──Serial/BLE/WiFi───┐
 TX Radio ──LUA script──> USB Serial (VCP) ────────┤
 USB Gamepad/Joystick ─────────────────────────────┤
                                                   ▼
