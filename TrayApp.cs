@@ -55,22 +55,27 @@ namespace RcConnector
         private readonly List<string> _logBuffer = new(100);
         private readonly object _logLock = new();
         private System.Windows.Forms.Timer? _mainTimer;
+        private System.Windows.Forms.Timer? _clickTimer;
         private DateTime _lastRcData = DateTime.MinValue;
+        private DateTime _lastRcSend = DateTime.MinValue;
         private int _rcFrameCount;
         private int _rcFrameCountSnapshot;
         private DateTime _lastRateCalc = DateTime.UtcNow;
         private bool _connected;
+        private bool _unknownFormat;
 
         public float DataRateHz { get; private set; }
 
         public TrayApp()
         {
             _settings = AppSettings.Load();
-            _parser = new RcParser();
+            _parser = new RcParser { Format = _settings.SerialFormat };
             _mavlink = new MavlinkService();
 
             // Wire parser → mavlink
             _parser.OnRcData += OnRcData;
+            _parser.OnUnknownFormat += OnUnknownFormat;
+            _parser.OnFormatDetected += fmt => Log($"Serial format: {fmt}");
             _mavlink.DroneStatusChanged += OnDroneStatusChanged;
 
             // Context menu
@@ -124,8 +129,7 @@ namespace RcConnector
             _iconCache[grayKey] = grayIcon;
             _trayIcon.Icon = grayIcon;
             _trayIcon.Tag = grayKey;
-            _trayIcon.MouseClick += (s, e) => { if (e.Button == MouseButtons.Left) ToggleMainForm(); };
-            _trayIcon.DoubleClick += (s, e) => ToggleMainForm();
+            _trayIcon.MouseClick += TrayIcon_MouseClick;
 
             // Main processing timer
             _mainTimer = new System.Windows.Forms.Timer { Interval = MAIN_TIMER_MS };
@@ -197,10 +201,29 @@ namespace RcConnector
             UpdateStatus();
         }
 
+        private void OnUnknownFormat()
+        {
+            _unknownFormat = true;
+            Log("Unknown serial format — check Settings → Serial format");
+        }
+
         private void OnRcData(ushort[] channels)
         {
+            _unknownFormat = false;
             _lastRcData = DateTime.UtcNow;
             _rcFrameCount++;
+
+            // Throttle output to configured send rate
+            double minIntervalMs = 1000.0 / Math.Clamp(_settings.RcSendRateHz, 10, 50);
+            var now = DateTime.UtcNow;
+            if ((now - _lastRcSend).TotalMilliseconds < minIntervalMs)
+            {
+                // Still update UI bars (cheap, no network)
+                _mainForm?.UpdateChannels(channels);
+                return;
+            }
+            _lastRcSend = now;
+
             _mavlink.SendRcOverride(channels);
 
             // RC forward via UDP
@@ -291,6 +314,11 @@ namespace RcConnector
                 tooltip = L.Get("tip_no_rc_drone_ok");
                 UpdateTrayIcon(Color.FromArgb(160, 50, 30), Color.LimeGreen, tooltip);
             }
+            else if (_unknownFormat)
+            {
+                tooltip = L.Get("tip_unknown_format");
+                UpdateTrayIcon(Color.Orange, tooltip);
+            }
             else
             {
                 tooltip = L.Get("tip_connected_no_data");
@@ -305,7 +333,8 @@ namespace RcConnector
                 hasRcData,
                 droneConnected,
                 _mavlink.DroneArmed && droneConnected,
-                _mavlink.DroneCustomMode);
+                _mavlink.DroneCustomMode,
+                _unknownFormat);
         }
 
         private void UpdateTrayIcon(Color color, string tooltip)
@@ -403,12 +432,14 @@ namespace RcConnector
                 _settings.UdpListenPort = newSettings.UdpListenPort;
                 _settings.MavlinkPort = newSettings.MavlinkPort;
                 _settings.MavlinkSysId = newSettings.MavlinkSysId;
-                _settings.JoystickPollHz = newSettings.JoystickPollHz;
+                _settings.RcSendRateHz = newSettings.RcSendRateHz;
                 _settings.SerialDtrRts = newSettings.SerialDtrRts;
                 _settings.RcForwardEnabled = newSettings.RcForwardEnabled;
                 _settings.RcForwardIp = newSettings.RcForwardIp;
                 _settings.RcForwardPort = newSettings.RcForwardPort;
                 _settings.IgnoreDroneTelemetry = newSettings.IgnoreDroneTelemetry;
+                _settings.SerialFormat = newSettings.SerialFormat;
+                _parser.Format = newSettings.SerialFormat;
                 _settings.AdaptiveDpi = newSettings.AdaptiveDpi;
                 _settings.Language = newSettings.Language;
                 _settings.ThemeMode = newSettings.ThemeMode;
@@ -755,7 +786,7 @@ namespace RcConnector
         private void ConnectJoystick(int deviceId, string deviceName)
         {
             _transport?.Dispose();
-            int pollMs = 1000 / Math.Clamp(_settings.JoystickPollHz, 10, 50);
+            int pollMs = 1000 / Math.Clamp(_settings.RcSendRateHz, 10, 50);
             var mapping = _settings.GetJoystickMapping(deviceName);
             var joy = new JoystickTransport(deviceId, deviceName, pollMs, mapping);
             WireTransport(joy);
@@ -792,7 +823,9 @@ namespace RcConnector
 
             _transport?.Disconnect();
             _connected = false;
+            _unknownFormat = false;
             _lastRcData = DateTime.MinValue;
+            _parser.Reset();
             Log(L.Get("log_disconnected"));
             UpdateMainFormToolbar();
         }
@@ -877,6 +910,25 @@ namespace RcConnector
                 _settings.WindowY = _mainForm.Location.Y;
                 _settings.Save();
             }
+        }
+
+        private void TrayIcon_MouseClick(object? sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left) return;
+
+            // Debounce: absorb double-click's second MouseClick event
+            if (_clickTimer != null && _clickTimer.Enabled)
+            {
+                _clickTimer.Stop();
+                return;
+            }
+
+            _clickTimer ??= new System.Windows.Forms.Timer();
+            _clickTimer.Interval = SystemInformation.DoubleClickTime;
+            _clickTimer.Tick += (s, _) => { _clickTimer.Stop(); };
+            _clickTimer.Start();
+
+            ToggleMainForm();
         }
 
         private void ToggleMainForm()

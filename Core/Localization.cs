@@ -39,6 +39,7 @@ namespace RcConnector.Core
             ["tip_rc_ok_no_drone"] = "RC-Connector: RC OK, no drone",
             ["tip_no_rc_drone_ok"] = "RC-Connector: No RC data, drone OK",
             ["tip_connected_no_data"] = "RC-Connector: Connected, no data",
+            ["tip_unknown_format"] = "RC-Connector: Unknown serial format",
 
             // Log messages
             ["log_mavlink_started"] = "MAVLink started: port={0}, sysid={1}",
@@ -64,6 +65,7 @@ namespace RcConnector.Core
             ["status_disconnected"] = "Disconnected",
             ["status_no_telemetry"] = "No telemetry",
             ["status_no_rc"] = "No RC data",
+            ["status_unknown_format"] = "Unknown format",
             ["status_no_drone"] = "No drone",
             ["status_armed"] = " ARMED ",
             ["status_disarmed"] = " DISARMED ",
@@ -80,13 +82,17 @@ namespace RcConnector.Core
 
             // SettingsForm
             ["settings_title"] = "RC-Connector Settings",
+            ["settings_data_format"] = "Data format:",
+            ["settings_data_format_hint"] = "\u2139 incoming RC data format",
+            ["settings_format_auto"] = "Auto",
             ["settings_mavlink_port"] = "MAVLink port:",
             ["settings_mavlink_port_hint"] = "\u26A0 not 14550 (GCS default)",
             ["settings_mavlink_sysid"] = "MAVLink sysid:",
             ["settings_mavlink_sysid_hint"] = "\u26A0 must match SYSID_MYGCS",
             ["settings_udp_port"] = "UDP ESP port:",
             ["settings_udp_port_hint"] = "\u2139 ESP32 WiFi source port",
-            ["settings_joystick_rate"] = "Joystick rate (Hz):",
+            ["settings_send_rate"] = "Send rate (Hz):",
+            ["settings_send_rate_hint"] = "\u2139 Hz, output to MAVLink/UDP",
             ["settings_dtr_rts"] = "Enable DTR/RTS on serial connect",
             ["settings_dtr_rts_hint"] = "\u2139 resets ESP32 on connect — needed for some boards",
             ["settings_adaptive_dpi"] = "Adaptive UI scaling",
@@ -174,6 +180,7 @@ namespace RcConnector.Core
             ["tip_rc_ok_no_drone"] = "RC-Connector: RC OK, немає дрона",
             ["tip_no_rc_drone_ok"] = "RC-Connector: Немає RC даних, дрон OK",
             ["tip_connected_no_data"] = "RC-Connector: З'єднано, немає даних",
+            ["tip_unknown_format"] = "RC-Connector: Невідомий формат серіал",
 
             // Log messages
             ["log_mavlink_started"] = "MAVLink запущено: порт={0}, sysid={1}",
@@ -199,6 +206,7 @@ namespace RcConnector.Core
             ["status_disconnected"] = "Від'єднано",
             ["status_no_telemetry"] = "Немає телеметрії",
             ["status_no_rc"] = "Немає RC даних",
+            ["status_unknown_format"] = "Невідомий формат",
             ["status_no_drone"] = "Немає дрона",
             ["status_armed"] = " ARMED ",
             ["status_disarmed"] = " DISARMED ",
@@ -215,13 +223,17 @@ namespace RcConnector.Core
 
             // SettingsForm
             ["settings_title"] = "RC-Connector Налаштування",
+            ["settings_data_format"] = "Формат даних:",
+            ["settings_data_format_hint"] = "\u2139 формат вхідних RC даних",
+            ["settings_format_auto"] = "Авто",
             ["settings_mavlink_port"] = "MAVLink порт:",
             ["settings_mavlink_port_hint"] = "\u26A0 не 14550 (порт GCS)",
             ["settings_mavlink_sysid"] = "MAVLink sysid:",
             ["settings_mavlink_sysid_hint"] = "\u26A0 має збігатись з SYSID_MYGCS",
             ["settings_udp_port"] = "UDP ESP порт:",
             ["settings_udp_port_hint"] = "\u2139 Порт ESP32 WiFi джерела",
-            ["settings_joystick_rate"] = "Джойстик (Hz):",
+            ["settings_send_rate"] = "Частота (Hz):",
+            ["settings_send_rate_hint"] = "\u2139 Hz, вивід MAVLink/UDP",
             ["settings_dtr_rts"] = "Увімкнути DTR/RTS при з'єднанні",
             ["settings_dtr_rts_hint"] = "\u2139 перезавантажує ESP32 — потрібно для деяких плат",
             ["settings_adaptive_dpi"] = "Адаптивне масштабування",

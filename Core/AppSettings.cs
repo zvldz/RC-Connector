@@ -8,6 +8,7 @@ using System.Text.Json.Serialization;
 namespace RcConnector.Core
 {
     internal enum SourceMode { COM, BLE, UDP, Joystick }
+    internal enum SerialFormat { Auto, R2D2, EspBridge }
 
     internal sealed class AppSettings
     {
@@ -15,6 +16,10 @@ namespace RcConnector.Core
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RC-Connector");
         private static readonly string SettingsPath =
             Path.Combine(SettingsDir, "settings.json");
+
+        // Serial data format
+        public SerialFormat SerialFormat { get; set; } = SerialFormat.Auto;
+        public int RcSendRateHz { get; set; } = 20; // 10-50 Hz, throttle for all transports
 
         // Transport source
         public SourceMode SourceMode { get; set; } = SourceMode.COM;
@@ -24,7 +29,6 @@ namespace RcConnector.Core
         public string? BleDeviceName { get; set; }
         public int JoystickDeviceId { get; set; } = -1;
         public string? JoystickDeviceName { get; set; }
-        public int JoystickPollHz { get; set; } = 20; // 1-50 Hz
         public JoystickMapping JoystickMapping { get; set; } = new();
         public Dictionary<string, JoystickMapping> JoystickMappings { get; set; } = new();
 

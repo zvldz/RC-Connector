@@ -13,6 +13,9 @@ namespace RcConnector
     {
         private readonly AppSettings _settings;
 
+        // Serial format
+        private readonly ComboBox _cboSerialFormat;
+
         // MAVLink
         private readonly TextBox _txtMavlinkPort;
         private readonly TextBox _txtMavlinkSysId;
@@ -20,8 +23,8 @@ namespace RcConnector
         // UDP ESP source
         private readonly TextBox _txtUdpPort;
 
-        // Joystick
-        private readonly ComboBox _cboJoystickRate;
+        // Send rate
+        private readonly ComboBox _cboSendRate;
 
         // Serial
         private readonly CheckBox _chkDtrRtsFix;
@@ -63,6 +66,62 @@ namespace RcConnector
 
             int y = 12;
             int controlX = 120;
+
+            // --- Data format ---
+            AddLabel(L.Get("settings_data_format"), 10, y);
+            _cboSerialFormat = new ComboBox
+            {
+                Location = new Point(controlX, y),
+                Width = 120,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = Theme.InputBg,
+                ForeColor = Theme.InputFg,
+                FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.Standard,
+                DrawMode = Theme.IsDark ? DrawMode.OwnerDrawFixed : DrawMode.Normal,
+            };
+            if (Theme.IsDark)
+                _cboSerialFormat.DrawItem += ComboDrawItem;
+            _cboSerialFormat.Items.Add(L.Get("settings_format_auto"));
+            _cboSerialFormat.Items.Add("R2D2");
+            _cboSerialFormat.Items.Add("ESP-Bridge");
+            _cboSerialFormat.SelectedIndex = settings.SerialFormat switch
+            {
+                SerialFormat.R2D2 => 1,
+                SerialFormat.EspBridge => 2,
+                _ => 0,
+            };
+            Controls.Add(_cboSerialFormat);
+            AddHint(L.Get("settings_data_format_hint"), controlX + 125, y);
+
+            y += 28;
+
+            // --- Send rate (global throttle for all transports) ---
+            AddLabel(L.Get("settings_send_rate"), 10, y);
+            _cboSendRate = new ComboBox
+            {
+                Location = new Point(controlX, y),
+                Width = 60,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = Theme.InputBg,
+                ForeColor = Theme.InputFg,
+                FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.Standard,
+                DrawMode = Theme.IsDark ? DrawMode.OwnerDrawFixed : DrawMode.Normal,
+            };
+            if (Theme.IsDark)
+                _cboSendRate.DrawItem += ComboDrawItem;
+            int[] rates = { 10, 20, 30, 40, 50 };
+            int selectedIdx = 0;
+            for (int i = 0; i < rates.Length; i++)
+            {
+                _cboSendRate.Items.Add(rates[i].ToString());
+                if (rates[i] == settings.RcSendRateHz)
+                    selectedIdx = i;
+            }
+            _cboSendRate.SelectedIndex = selectedIdx;
+            Controls.Add(_cboSendRate);
+            AddHint(L.Get("settings_send_rate_hint"), controlX + 65, y);
+
+            y += 28;
 
             // --- MAVLink port ---
             AddLabel(L.Get("settings_mavlink_port"), 10, y);
@@ -108,33 +167,6 @@ namespace RcConnector
             AddHint(L.Get("settings_udp_port_hint"), controlX + 85, y);
 
             y += 26;
-
-            // --- Joystick poll rate ---
-            AddLabel(L.Get("settings_joystick_rate"), 10, y);
-            _cboJoystickRate = new ComboBox
-            {
-                Location = new Point(controlX, y),
-                Width = 60,
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                BackColor = Theme.InputBg,
-                ForeColor = Theme.InputFg,
-                FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.Standard,
-                DrawMode = Theme.IsDark ? DrawMode.OwnerDrawFixed : DrawMode.Normal,
-            };
-            if (Theme.IsDark)
-                _cboJoystickRate.DrawItem += ComboDrawItem;
-            int[] rates = { 10, 20, 30, 40, 50 };
-            int selectedIdx = 0;
-            for (int i = 0; i < rates.Length; i++)
-            {
-                _cboJoystickRate.Items.Add(rates[i].ToString());
-                if (rates[i] == settings.JoystickPollHz)
-                    selectedIdx = i;
-            }
-            _cboJoystickRate.SelectedIndex = selectedIdx;
-            Controls.Add(_cboJoystickRate);
-
-            y += 28;
 
             // --- Serial DTR/RTS fix ---
             _chkDtrRtsFix = new CheckBox
@@ -380,13 +412,19 @@ namespace RcConnector
                 JoystickMappings = _settings.JoystickMappings,
 
                 // Editable settings
+                SerialFormat = _cboSerialFormat.SelectedIndex switch
+                {
+                    1 => SerialFormat.R2D2,
+                    2 => SerialFormat.EspBridge,
+                    _ => SerialFormat.Auto,
+                },
                 MavlinkPort = int.TryParse(_txtMavlinkPort.Text, out int mp) && mp > 0 && mp <= 65535
                     ? mp : _settings.MavlinkPort,
                 MavlinkSysId = int.TryParse(_txtMavlinkSysId.Text, out int sid) && sid >= 1 && sid <= 255
                     ? sid : _settings.MavlinkSysId,
                 UdpListenPort = int.TryParse(_txtUdpPort.Text, out int up) && up > 0 && up <= 65535
                     ? up : _settings.UdpListenPort,
-                JoystickPollHz = int.TryParse(_cboJoystickRate.SelectedItem?.ToString(), out int jph) ? jph : 10,
+                RcSendRateHz = int.TryParse(_cboSendRate.SelectedItem?.ToString(), out int rr) ? rr : 20,
                 SerialDtrRts = _chkDtrRtsFix.Checked,
                 RcForwardEnabled = _chkRcForward.Checked,
                 RcForwardIp = _txtRcForwardIp.Text.Trim(),

@@ -513,7 +513,8 @@ namespace RcConnector
         /// Update status bar text. Thread-safe.
         /// </summary>
         public void UpdateStatus(bool connected, string transportName, float hz,
-            bool hasRcData, bool droneConnected, bool armed, uint customMode)
+            bool hasRcData, bool droneConnected, bool armed, uint customMode,
+            bool unknownFormat = false)
         {
             if (IsDisposed || !IsHandleCreated)
                 return;
@@ -573,6 +574,14 @@ namespace RcConnector
                         string modeName = DecodeCopterMode(customMode);
                         modeText = $" {modeName} ";
                         modeBg = Color.FromArgb(50, 80, 140);
+                    }
+                    else if (unknownFormat)
+                    {
+                        tText = $" {transportName} ";
+                        tBg = Color.FromArgb(160, 80, 20);
+                        panelBg = Color.FromArgb(80, 40, 20);
+                        modeText = $" {L.Get("status_unknown_format")} ";
+                        modeBg = Color.FromArgb(180, 40, 40);
                     }
                     else
                     {
