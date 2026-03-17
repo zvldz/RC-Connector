@@ -175,6 +175,8 @@ namespace RcConnector
         {
             _mainTimer?.Stop();
             _mainTimer?.Dispose();
+            _clickTimer?.Stop();
+            _clickTimer?.Dispose();
 
             // Intentional disconnect — send ClearRcOverride
             if (_connected)
@@ -325,16 +327,17 @@ namespace RcConnector
                 UpdateTrayIcon(Color.OrangeRed, tooltip);
             }
 
-            // Update main form status
-            _mainForm?.UpdateStatus(
-                _connected,
-                _transport?.DisplayName ?? "",
-                DataRateHz,
-                hasRcData,
-                droneConnected,
-                _mavlink.DroneArmed && droneConnected,
-                _mavlink.DroneCustomMode,
-                _unknownFormat);
+            // Update main form status (skip when hidden to reduce overhead)
+            if (_mainForm != null && !_mainForm.IsDisposed && _mainForm.Visible)
+                _mainForm.UpdateStatus(
+                    _connected,
+                    _transport?.DisplayName ?? "",
+                    DataRateHz,
+                    hasRcData,
+                    droneConnected,
+                    _mavlink.DroneArmed && droneConnected,
+                    _mavlink.DroneCustomMode,
+                    _unknownFormat);
         }
 
         private void UpdateTrayIcon(Color color, string tooltip)
@@ -354,7 +357,10 @@ namespace RcConnector
 
         private void UpdateTrayIconInternal(string colorKey, string tooltip, Func<Icon> createIcon)
         {
-            _trayIcon.Text = tooltip.Length > 63 ? tooltip.Substring(0, 63) : tooltip;
+            // Only update tooltip if changed (each set calls Shell_NotifyIcon)
+            var truncated = tooltip.Length > 63 ? tooltip.Substring(0, 63) : tooltip;
+            if (_trayIcon.Text != truncated)
+                _trayIcon.Text = truncated;
 
             // Only recreate icon if color changed
             var currentTag = _trayIcon.Tag as string;
@@ -923,9 +929,12 @@ namespace RcConnector
                 return;
             }
 
-            _clickTimer ??= new System.Windows.Forms.Timer();
-            _clickTimer.Interval = SystemInformation.DoubleClickTime;
-            _clickTimer.Tick += (s, _) => { _clickTimer.Stop(); };
+            if (_clickTimer == null)
+            {
+                _clickTimer = new System.Windows.Forms.Timer();
+                _clickTimer.Interval = SystemInformation.DoubleClickTime;
+                _clickTimer.Tick += (s, _) => { _clickTimer.Stop(); };
+            }
             _clickTimer.Start();
 
             ToggleMainForm();
