@@ -2,12 +2,12 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>Resources\app.ico</ApplicationIcon>
     <AssemblyName>RC-Connector</AssemblyName>
     <RootNamespace>RcConnector</RootNamespace>
-    <Version>0.5.1</Version>
+    <Version>0.6.0</Version>
     <Nullable>enable</Nullable>
     <Copyright>@zvldz &amp; team</Copyright>
 
@@ -16,7 +16,7 @@
 
   <ItemGroup>
     <PackageReference Include="MAVLink" Version="1.0.8" />
-    <PackageReference Include="System.IO.Ports" Version="8.*" />
+    <PackageReference Include="System.IO.Ports" Version="9.*" />
   </ItemGroup>
 
   <!-- Optional author.txt: copy to output if present (gitignored, not in repo) -->
