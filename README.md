@@ -17,9 +17,14 @@ USB Gamepad/Joystick ───────────────────�
                                                   ▼
                                            [RC-Connector]
                                                   │
-                              ┌────────────────────┼────────────────────────┐
-                              ▼                    ▼                        ▼
-                    UDP MAVLink ──> Drone   UDP forward ──> app    Tray icon + window
+                    ┌─────────────┬────────────────┼────────────────┐
+                    ▼             ▼                ▼                ▼
+          UDP MAVLink ──> Drone  WebRTC DC   UDP forward    Tray icon + window
+          (direct mode)       ──> Server     ──> app
+                                  │
+                            UDP localhost:14550
+                                  │
+                            Mission Planner
 ```
 
 ## Features
@@ -30,8 +35,10 @@ USB Gamepad/Joystick ───────────────────�
 - **LUA scripts** for EdgeTX radios: send RC channels via USB Serial (VCP) directly from transmitter
 - **Joystick channel mapping**: 8 RC channels, each assignable to axis or button group with live PWM preview
 - **Button groups**: assign multiple gamepad buttons to one RC channel — PWM positions auto-distributed
-- **MAVLink output**: HEARTBEAT + RC_CHANNELS_OVERRIDE (16 channels) via UDP
-- **RC forwarding**: forward parsed channels as `RC 1500,1500,...` text via UDP to configurable IP:port
+- **Two telemetry modes**: Direct UDP (classic MAVLink) or WebRTC DataChannel (no VPN needed)
+- **WebRTC bridge**: browser-based signaling, binary MAVLink via DataChannel, auto-forward to GCS (Mission Planner)
+- **MAVLink output**: HEARTBEAT + RC_CHANNELS_OVERRIDE (16 channels) via UDP or DataChannel
+- **RC forwarding**: forward parsed channels via UDP in ESP-Bridge or R2D2 format (auto/manual)
 - **Passive mode**: listens for drone telemetry, replies to sender address
 - **Tray icon** with color-coded status: gray/red/orange/green
 - **Mini window**: 16 channel bars with real-time values, flight mode, armed status
@@ -85,6 +92,27 @@ RC-Connector operates in **passive mode**:
 3. Works in parallel with GCS (Mission Planner on port 14550)
 
 **Important**: `SYSID_MYGCS` on the drone must match RC-Connector's System ID (default `255`, configurable in Settings).
+
+## WebRTC Mode
+
+In WebRTC mode, RC-Connector receives MAVLink telemetry via DataChannel instead of direct UDP — no VPN required for the operator.
+
+```
+Browser (authorized) ←wss→ Server (mavlink_v2.py)
+Browser ←ws://localhost:9999→ RC-Connector (signaling)
+
+After handshake:
+Server ←── DataChannel "mavlink-binary" ──→ RC-Connector ──UDP──→ Mission Planner
+```
+
+1. RC-Connector listens on `ws://localhost:9999` for signaling
+2. Browser proxies WebRTC offer/answer/ICE between RC-Connector and server
+3. DataChannel established directly (UDP, encrypted via DTLS)
+4. All MAVLink packets forwarded to GCS on `localhost:14550`
+5. GCS commands forwarded back through DataChannel to drone
+6. Browser can be closed — DataChannel persists
+
+Select **WebRTC** telemetry mode in Settings to enable.
 
 ## LUA Scripts
 

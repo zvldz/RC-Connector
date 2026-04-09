@@ -16,9 +16,24 @@ namespace RcConnector
         // Serial format
         private readonly ComboBox _cboSerialFormat;
 
-        // MAVLink
+        // Telemetry mode
+        private readonly ComboBox _cboTelemetryMode;
+
+        // Direct UDP fields
+        private readonly Label _lblMavlinkPort;
         private readonly TextBox _txtMavlinkPort;
+        private readonly Label _lblMavlinkPortHint;
+
+        // Common
         private readonly TextBox _txtMavlinkSysId;
+
+        // WebRTC fields
+        private readonly Label _lblSignalingPort;
+        private readonly TextBox _txtSignalingPort;
+        private readonly Label _lblSignalingPortHint;
+        private readonly Label _lblMpForwardPort;
+        private readonly TextBox _txtMpForwardPort;
+        private readonly Label _lblMpForwardPortHint;
 
         // UDP ESP source
         private readonly TextBox _txtUdpPort;
@@ -33,6 +48,7 @@ namespace RcConnector
         private readonly CheckBox _chkRcForward;
         private readonly TextBox _txtRcForwardIp;
         private readonly TextBox _txtRcForwardPort;
+        private readonly ComboBox _cboRcForwardFormat;
 
         // Telemetry
         private readonly CheckBox _chkIgnoreDrone;
@@ -123,8 +139,29 @@ namespace RcConnector
 
             y += 28;
 
-            // --- MAVLink port ---
-            AddLabel(L.Get("settings_mavlink_port"), 10, y);
+            // --- Telemetry mode ---
+            AddLabel(L.Get("settings_telemetry_mode"), 10, y);
+            _cboTelemetryMode = new ComboBox
+            {
+                Location = new Point(controlX, y),
+                Width = 120,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = Theme.InputBg,
+                ForeColor = Theme.InputFg,
+                FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.Standard,
+                DrawMode = Theme.IsDark ? DrawMode.OwnerDrawFixed : DrawMode.Normal,
+            };
+            if (Theme.IsDark)
+                _cboTelemetryMode.DrawItem += ComboDrawItem;
+            _cboTelemetryMode.Items.Add(L.Get("settings_telemetry_direct"));
+            _cboTelemetryMode.Items.Add(L.Get("settings_telemetry_webrtc"));
+            _cboTelemetryMode.SelectedIndex = settings.TelemetryMode == TelemetryMode.WebRtc ? 1 : 0;
+            Controls.Add(_cboTelemetryMode);
+
+            y += 28;
+
+            // --- Direct UDP: MAVLink port (row 1, conditional) ---
+            _lblMavlinkPort = AddLabelRef(L.Get("settings_mavlink_port"), 10, y);
             _txtMavlinkPort = new TextBox
             {
                 Location = new Point(controlX, y),
@@ -134,11 +171,43 @@ namespace RcConnector
                 ForeColor = Theme.InputFg,
             };
             Controls.Add(_txtMavlinkPort);
-            AddHint(L.Get("settings_mavlink_port_hint"), controlX + 85, y);
+            _lblMavlinkPortHint = AddHintRef(L.Get("settings_mavlink_port_hint"), controlX + 85, y);
+
+            // --- WebRTC: Signaling port (row 1, conditional) ---
+            _lblSignalingPort = AddLabelRef(L.Get("settings_signaling_port"), 10, y);
+            _txtSignalingPort = new TextBox
+            {
+                Location = new Point(controlX, y),
+                Width = 80,
+                Text = settings.SignalingPort.ToString(),
+                BackColor = Theme.InputBg,
+                ForeColor = Theme.InputFg,
+            };
+            Controls.Add(_txtSignalingPort);
+            _lblSignalingPortHint = AddHintRef(L.Get("settings_signaling_port_hint"), controlX + 85, y);
 
             y += 26;
 
-            // --- MAVLink System ID ---
+            // --- WebRTC: MP forward port (row 2, conditional) ---
+            _lblMpForwardPort = AddLabelRef(L.Get("settings_mp_forward_port"), 10, y);
+            _txtMpForwardPort = new TextBox
+            {
+                Location = new Point(controlX, y),
+                Width = 80,
+                Text = settings.MpForwardPort.ToString(),
+                BackColor = Theme.InputBg,
+                ForeColor = Theme.InputFg,
+            };
+            Controls.Add(_txtMpForwardPort);
+            _lblMpForwardPortHint = AddHintRef(L.Get("settings_mp_forward_port_hint"), controlX + 85, y);
+
+            // Show/hide fields based on mode
+            _cboTelemetryMode.SelectedIndexChanged += (s, e) => UpdateTelemetryFields();
+            UpdateTelemetryFields();
+
+            y += 26;
+
+            // --- MAVLink System ID (always visible) ---
             AddLabel(L.Get("settings_mavlink_sysid"), 10, y);
             _txtMavlinkSysId = new TextBox
             {
@@ -216,6 +285,29 @@ namespace RcConnector
                 Enabled = settings.RcForwardEnabled,
             };
             Controls.Add(_txtRcForwardPort);
+
+            y += 22;
+
+            AddLabel(L.Get("settings_rc_forward_format"), 28, y);
+            _cboRcForwardFormat = new ComboBox
+            {
+                Location = new Point(controlX, y),
+                Width = 100,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = Theme.InputBg,
+                ForeColor = Theme.InputFg,
+                FlatStyle = Theme.IsDark ? FlatStyle.Flat : FlatStyle.Standard,
+                DrawMode = Theme.IsDark ? DrawMode.OwnerDrawFixed : DrawMode.Normal,
+                Enabled = settings.RcForwardEnabled,
+            };
+            if (Theme.IsDark)
+                _cboRcForwardFormat.DrawItem += ComboDrawItem;
+            _cboRcForwardFormat.Items.Add("Auto");
+            _cboRcForwardFormat.Items.Add("ESP-Bridge");
+            _cboRcForwardFormat.Items.Add("R2D2");
+            _cboRcForwardFormat.SelectedIndex = (int)settings.RcForwardFormat;
+            Controls.Add(_cboRcForwardFormat);
+
             y += 15;
             AddHint(L.Get("settings_rc_forward_hint"), 28, y);
 
@@ -223,6 +315,7 @@ namespace RcConnector
             {
                 _txtRcForwardIp.Enabled = _chkRcForward.Checked;
                 _txtRcForwardPort.Enabled = _chkRcForward.Checked;
+                _cboRcForwardFormat.Enabled = _chkRcForward.Checked;
             };
 
             y += 24;
@@ -391,6 +484,50 @@ namespace RcConnector
             });
         }
 
+        private Label AddLabelRef(string text, int x, int y)
+        {
+            var lbl = new Label
+            {
+                Text = text,
+                Location = new Point(x, y + 3),
+                AutoSize = true,
+            };
+            Controls.Add(lbl);
+            return lbl;
+        }
+
+        private Label AddHintRef(string text, int x, int y)
+        {
+            var lbl = new Label
+            {
+                Text = text,
+                Location = new Point(x, y + 3),
+                AutoSize = true,
+                ForeColor = Theme.HintFg,
+                Font = new Font(Font.FontFamily, 7.5f),
+            };
+            Controls.Add(lbl);
+            return lbl;
+        }
+
+        private void UpdateTelemetryFields()
+        {
+            bool isDirect = _cboTelemetryMode.SelectedIndex == 0;
+
+            // Direct UDP fields
+            _lblMavlinkPort.Visible = isDirect;
+            _txtMavlinkPort.Visible = isDirect;
+            _lblMavlinkPortHint.Visible = isDirect;
+
+            // WebRTC fields
+            _lblSignalingPort.Visible = !isDirect;
+            _txtSignalingPort.Visible = !isDirect;
+            _lblSignalingPortHint.Visible = !isDirect;
+            _lblMpForwardPort.Visible = !isDirect;
+            _txtMpForwardPort.Visible = !isDirect;
+            _lblMpForwardPortHint.Visible = !isDirect;
+        }
+
         private void OnApplyClick(object? sender, EventArgs e)
         {
             string lang = _cboLanguage.SelectedIndex switch
@@ -412,6 +549,7 @@ namespace RcConnector
                 JoystickMappings = _settings.JoystickMappings,
 
                 // Editable settings
+                TelemetryMode = _cboTelemetryMode.SelectedIndex == 1 ? TelemetryMode.WebRtc : TelemetryMode.DirectUdp,
                 SerialFormat = _cboSerialFormat.SelectedIndex switch
                 {
                     1 => SerialFormat.R2D2,
@@ -422,6 +560,10 @@ namespace RcConnector
                     ? mp : _settings.MavlinkPort,
                 MavlinkSysId = int.TryParse(_txtMavlinkSysId.Text, out int sid) && sid >= 1 && sid <= 255
                     ? sid : _settings.MavlinkSysId,
+                SignalingPort = int.TryParse(_txtSignalingPort.Text, out int sp) && sp > 0 && sp <= 65535
+                    ? sp : _settings.SignalingPort,
+                MpForwardPort = int.TryParse(_txtMpForwardPort.Text, out int mfp) && mfp > 0 && mfp <= 65535
+                    ? mfp : _settings.MpForwardPort,
                 UdpListenPort = int.TryParse(_txtUdpPort.Text, out int up) && up > 0 && up <= 65535
                     ? up : _settings.UdpListenPort,
                 RcSendRateHz = int.TryParse(_cboSendRate.SelectedItem?.ToString(), out int rr) ? rr : 20,
@@ -430,6 +572,7 @@ namespace RcConnector
                 RcForwardIp = _txtRcForwardIp.Text.Trim(),
                 RcForwardPort = int.TryParse(_txtRcForwardPort.Text, out int fp) && fp > 0 && fp <= 65535
                     ? fp : _settings.RcForwardPort,
+                RcForwardFormat = (RcForwardFormat)_cboRcForwardFormat.SelectedIndex,
                 IgnoreDroneTelemetry = _chkIgnoreDrone.Checked,
                 AdaptiveDpi = true,
                 Language = lang,
@@ -444,7 +587,6 @@ namespace RcConnector
             };
 
             ApplyRequested?.Invoke(newSettings);
-            Close();
         }
 
         private static void ComboDrawItem(object? sender, DrawItemEventArgs e)

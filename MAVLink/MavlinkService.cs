@@ -26,12 +26,14 @@ namespace RcConnector.MAVLink
         private Timer? _heartbeatTimer;
         private Timer? _receiveTimer;
         private readonly global::MAVLink.MavlinkParse _parser = new();
+        private readonly global::MAVLink.MavlinkParse _externalParser = new();
         private int _port;
         private byte _sysId = 255;
         private int _seqNum;
 
         // Drone state (from received HEARTBEAT)
-        public bool DroneConnected => _droneEndpoint != null &&
+        public bool DroneConnected =>
+            _lastDroneHeartbeat != DateTime.MinValue &&
             (DateTime.UtcNow - _lastDroneHeartbeat).TotalMilliseconds < DRONE_TIMEOUT_MS;
         public byte DroneSystemId { get; private set; }
         public byte DroneComponentId { get; private set; }
@@ -162,6 +164,35 @@ namespace RcConnector.MAVLink
             SendPacket(msg, global::MAVLink.MAVLINK_MSG_ID.HEARTBEAT);
         }
 
+        /// <summary>
+        /// Generate RC_CHANNELS_OVERRIDE packet as raw bytes (for WebRTC mode).
+        /// </summary>
+        public byte[]? GenerateRcOverridePacket(ushort[] channels)
+        {
+            if (channels.Length < 16) return null;
+
+            var msg = new global::MAVLink.mavlink_rc_channels_override_t
+            {
+                target_system = DroneSystemId > 0 ? DroneSystemId : (byte)1,
+                target_component = DroneComponentId > 0 ? DroneComponentId : (byte)1,
+                chan1_raw = channels[0],  chan2_raw = channels[1],
+                chan3_raw = channels[2],  chan4_raw = channels[3],
+                chan5_raw = channels[4],  chan6_raw = channels[5],
+                chan7_raw = channels[6],  chan8_raw = channels[7],
+                chan9_raw = channels[8],  chan10_raw = channels[9],
+                chan11_raw = channels[10], chan12_raw = channels[11],
+                chan13_raw = channels[12], chan14_raw = channels[13],
+                chan15_raw = channels[14], chan16_raw = channels[15],
+            };
+
+            try
+            {
+                return _parser.GenerateMAVLinkPacket20(
+                    global::MAVLink.MAVLINK_MSG_ID.RC_CHANNELS_OVERRIDE, msg, false, _sysId, MAV_COMPID, _seqNum++);
+            }
+            catch { return null; }
+        }
+
         private void SendPacket<T>(T msg, global::MAVLink.MAVLINK_MSG_ID msgId) where T : struct
         {
             if (_udp == null || _droneEndpoint == null)
@@ -211,38 +242,41 @@ namespace RcConnector.MAVLink
             catch (ObjectDisposedException) { }
         }
 
-        private void ParseIncoming(byte[] data)
+        /// <summary>
+        /// Parse incoming MAVLink data and update drone status.
+        /// Called internally for UDP and externally for WebRTC DataChannel.
+        /// </summary>
+        public void ParseIncoming(byte[] data)
         {
             try
             {
                 using var stream = new MemoryStream(data);
-                var packet = _parser.ReadPacket(stream);
-                if (packet == null)
-                    return;
-
-                if (packet.msgid == (uint)global::MAVLink.MAVLINK_MSG_ID.HEARTBEAT)
+                while (stream.Position < stream.Length)
                 {
-                    var hb = (global::MAVLink.mavlink_heartbeat_t)packet.data;
-                    // Ignore other GCS heartbeats, only drone
-                    if (hb.type == MAV_TYPE_GCS)
-                        return;
+                    var packet = _externalParser.ReadPacket(stream);
+                    if (packet == null)
+                        break;
 
-                    bool wasConnected = DroneConnected;
+                    if (packet.msgid == (uint)global::MAVLink.MAVLINK_MSG_ID.HEARTBEAT)
+                    {
+                        var hb = (global::MAVLink.mavlink_heartbeat_t)packet.data;
+                        if (hb.type == MAV_TYPE_GCS)
+                            continue;
 
-                    DroneSystemId = packet.sysid;
-                    DroneComponentId = packet.compid;
-                    DroneCustomMode = hb.custom_mode;
-                    DroneArmed = (hb.base_mode & 128) != 0; // MAV_MODE_FLAG_SAFETY_ARMED
-                    _lastDroneHeartbeat = DateTime.UtcNow;
+                        bool wasConnected = DroneConnected;
 
-                    if (!wasConnected)
-                        DroneStatusChanged?.Invoke(true);
+                        DroneSystemId = packet.sysid;
+                        DroneComponentId = packet.compid;
+                        DroneCustomMode = hb.custom_mode;
+                        DroneArmed = (hb.base_mode & 128) != 0;
+                        _lastDroneHeartbeat = DateTime.UtcNow;
+
+                        if (!wasConnected)
+                            DroneStatusChanged?.Invoke(true);
+                    }
                 }
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine("[MAVLink] Parse error: " + ex.Message);
-            }
+            catch { }
         }
 
     }

@@ -9,6 +9,8 @@ namespace RcConnector.Core
 {
     internal enum SourceMode { COM, BLE, UDP, Joystick }
     internal enum SerialFormat { Auto, R2D2, EspBridge }
+    internal enum TelemetryMode { DirectUdp, WebRtc }
+    internal enum RcForwardFormat { Auto, EspBridge, R2D2 }
 
     internal sealed class AppSettings
     {
@@ -32,14 +34,22 @@ namespace RcConnector.Core
         public JoystickMapping JoystickMapping { get; set; } = new();
         public Dictionary<string, JoystickMapping> JoystickMappings { get; set; } = new();
 
-        // MAVLink output (listen port — replies to sender address)
+        // Telemetry mode
+        public TelemetryMode TelemetryMode { get; set; } = TelemetryMode.DirectUdp;
+
+        // MAVLink output (Direct UDP: listen port — replies to sender address)
         public int MavlinkPort { get; set; } = 14555;
         public int MavlinkSysId { get; set; } = 255;
+
+        // WebRTC bridge
+        public int SignalingPort { get; set; } = 9999;
+        public int MpForwardPort { get; set; } = 14550; // send telemetry to MP on this UDP port
 
         // RC forward: send parsed channels as "RC 1500,1500,...\n" via UDP
         public bool RcForwardEnabled { get; set; } = false;
         public string RcForwardIp { get; set; } = "127.0.0.1";
         public int RcForwardPort { get; set; } = 14560;
+        public RcForwardFormat RcForwardFormat { get; set; } = RcForwardFormat.Auto;
 
         // Serial
         public bool SerialDtrRts { get; set; } = true;

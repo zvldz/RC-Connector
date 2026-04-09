@@ -27,6 +27,9 @@ namespace RcConnector.Core
         /// <summary>Serial data format. Can be changed at runtime via Settings.</summary>
         public SerialFormat Format { get; set; } = SerialFormat.Auto;
 
+        /// <summary>True if last successfully parsed format was R2D2.</summary>
+        public bool LastFormatIsR2D2 { get; private set; }
+
         /// <summary>Fired when a valid RC line is parsed. Provides 16-channel PWM array.</summary>
         public event Action<ushort[]>? OnRcData;
 
@@ -137,10 +140,14 @@ namespace RcConnector.Core
                     break;
             }
 
-            if (rc != null && !_formatLogged)
+            if (rc != null)
             {
-                _formatLogged = true;
-                OnFormatDetected?.Invoke(detectedFormat!);
+                LastFormatIsR2D2 = detectedFormat != null && detectedFormat.StartsWith("R2D2");
+                if (!_formatLogged)
+                {
+                    _formatLogged = true;
+                    OnFormatDetected?.Invoke(detectedFormat!);
+                }
             }
 
             return rc;

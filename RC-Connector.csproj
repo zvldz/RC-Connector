@@ -7,7 +7,7 @@
     <ApplicationIcon>Resources\app.ico</ApplicationIcon>
     <AssemblyName>RC-Connector</AssemblyName>
     <RootNamespace>RcConnector</RootNamespace>
-    <Version>0.6.0</Version>
+    <Version>0.6.1</Version>
     <Nullable>enable</Nullable>
     <Copyright>@zvldz &amp; team</Copyright>
 
@@ -15,6 +15,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="DataChannelDotnet" Version="1.3.1" />
     <PackageReference Include="MAVLink" Version="1.0.8" />
     <PackageReference Include="System.IO.Ports" Version="9.*" />
   </ItemGroup>

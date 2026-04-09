@@ -47,6 +47,11 @@ namespace RcConnector
         private UdpClient? _rcForwardClient;
         private IPEndPoint? _rcForwardEndpoint;
 
+        // WebRTC bridge (DataChannel ↔ UDP for Mission Planner)
+        private SignalingServer? _signalingServer;
+        private WebRtcPeer? _webRtcPeer;
+        private MavlinkBridge? _mpBridge;
+
         // Update
         private readonly UpdateChecker _updateChecker = new();
         private bool _updatePending;
@@ -136,15 +141,14 @@ namespace RcConnector
             _mainTimer.Tick += MainTimer_Tick;
             _mainTimer.Start();
 
-            // Start MAVLink listener
-            try
+            // Start telemetry mode
+            if (_settings.TelemetryMode == TelemetryMode.WebRtc)
             {
-                _mavlink.Start(_settings.MavlinkPort, _settings.MavlinkSysId);
-                Log(L.Get("log_mavlink_started", _settings.MavlinkPort, _settings.MavlinkSysId));
+                StartWebRtcMode();
             }
-            catch (Exception ex)
+            else
             {
-                Log(L.Get("log_mavlink_start_failed", ex.Message));
+                StartDirectUdpMode();
             }
 
             // RC forward
@@ -186,6 +190,9 @@ namespace RcConnector
 
             _transport?.Dispose();
             _rcForwardClient?.Dispose();
+            _mpBridge?.Dispose();
+            _webRtcPeer?.Dispose();
+            _signalingServer?.Dispose();
             _mavlink.Dispose();
             _trayIcon.Visible = false;
             _trayIcon.Dispose();
@@ -226,14 +233,28 @@ namespace RcConnector
             }
             _lastRcSend = now;
 
-            _mavlink.SendRcOverride(channels);
+            // Send RC override: via UDP (direct) or DataChannel (WebRTC)
+            if (_settings.TelemetryMode == TelemetryMode.WebRtc && _webRtcPeer?.IsConnected == true)
+            {
+                var packet = _mavlink.GenerateRcOverridePacket(channels);
+                if (packet != null)
+                    _webRtcPeer.Send(packet);
+            }
+            else
+            {
+                _mavlink.SendRcOverride(channels);
+            }
 
             // RC forward via UDP
             if (_rcForwardClient != null && _rcForwardEndpoint != null)
             {
                 try
                 {
-                    var line = "RC " + string.Join(",", channels) + "\n";
+                    bool useR2D2 = _settings.RcForwardFormat == RcForwardFormat.R2D2 ||
+                        (_settings.RcForwardFormat == RcForwardFormat.Auto && _parser.LastFormatIsR2D2);
+                    string line = useR2D2
+                        ? "$" + string.Join(",", channels) + ",\r\n"
+                        : "RC " + string.Join(",", channels) + "\n";
                     var bytes = Encoding.ASCII.GetBytes(line);
                     _rcForwardClient.Send(bytes, bytes.Length, _rcForwardEndpoint);
                 }
@@ -427,22 +448,29 @@ namespace RcConnector
             _settingsForm = new SettingsForm(_settings, _connected);
             _settingsForm.ApplyRequested += (newSettings) =>
             {
+                bool telemetryModeChanged = _settings.TelemetryMode != newSettings.TelemetryMode;
                 bool mavlinkChanged = _settings.MavlinkPort != newSettings.MavlinkPort ||
                     _settings.MavlinkSysId != newSettings.MavlinkSysId;
+                bool webrtcChanged = _settings.SignalingPort != newSettings.SignalingPort ||
+                    _settings.MpForwardPort != newSettings.MpForwardPort;
                 bool forwardChanged = _settings.RcForwardEnabled != newSettings.RcForwardEnabled ||
                     _settings.RcForwardIp != newSettings.RcForwardIp ||
                     _settings.RcForwardPort != newSettings.RcForwardPort;
                 bool dpiChanged = _settings.AdaptiveDpi != newSettings.AdaptiveDpi;
                 bool langChanged = _settings.Language != newSettings.Language;
 
+                _settings.TelemetryMode = newSettings.TelemetryMode;
                 _settings.UdpListenPort = newSettings.UdpListenPort;
                 _settings.MavlinkPort = newSettings.MavlinkPort;
                 _settings.MavlinkSysId = newSettings.MavlinkSysId;
+                _settings.SignalingPort = newSettings.SignalingPort;
+                _settings.MpForwardPort = newSettings.MpForwardPort;
                 _settings.RcSendRateHz = newSettings.RcSendRateHz;
                 _settings.SerialDtrRts = newSettings.SerialDtrRts;
                 _settings.RcForwardEnabled = newSettings.RcForwardEnabled;
                 _settings.RcForwardIp = newSettings.RcForwardIp;
                 _settings.RcForwardPort = newSettings.RcForwardPort;
+                _settings.RcForwardFormat = newSettings.RcForwardFormat;
                 _settings.IgnoreDroneTelemetry = newSettings.IgnoreDroneTelemetry;
                 _settings.SerialFormat = newSettings.SerialFormat;
                 _parser.Format = newSettings.SerialFormat;
@@ -456,19 +484,23 @@ namespace RcConnector
                 if (langChanged)
                     L.Init(_settings.Language);
 
-                // Restart MAVLink only if port or sysid changed
-                if (mavlinkChanged)
+                // Switch telemetry mode or restart if settings changed
+                if (telemetryModeChanged || mavlinkChanged || webrtcChanged)
                 {
-                    try
-                    {
-                        _mavlink.Stop();
-                        _mavlink.Start(_settings.MavlinkPort, _settings.MavlinkSysId);
-                        Log(L.Get("log_mavlink_restarted", _settings.MavlinkPort, _settings.MavlinkSysId));
-                    }
-                    catch (Exception ex)
-                    {
-                        Log(L.Get("log_mavlink_restart_failed", ex.Message));
-                    }
+                    // Stop everything first
+                    _mavlink.Stop();
+                    _mpBridge?.Dispose();
+                    _mpBridge = null;
+                    _webRtcPeer?.Dispose();
+                    _webRtcPeer = null;
+                    _signalingServer?.Dispose();
+                    _signalingServer = null;
+
+                    // Start the selected mode
+                    if (_settings.TelemetryMode == TelemetryMode.WebRtc)
+                        StartWebRtcMode();
+                    else
+                        StartDirectUdpMode();
                 }
 
                 // Restart RC forwarder if settings changed
@@ -855,6 +887,76 @@ namespace RcConnector
                 _rcForwardEndpoint = new IPEndPoint(ip, _settings.RcForwardPort);
                 Log(L.Get("log_rc_forward_started", _settings.RcForwardIp, _settings.RcForwardPort));
             }
+        }
+
+        // ---------------------------------------------------------------
+        // Telemetry mode startup
+        // ---------------------------------------------------------------
+
+        private void StartDirectUdpMode()
+        {
+            try
+            {
+                _mavlink.Start(_settings.MavlinkPort, _settings.MavlinkSysId);
+                Log(L.Get("log_mavlink_started", _settings.MavlinkPort, _settings.MavlinkSysId));
+            }
+            catch (Exception ex)
+            {
+                Log(L.Get("log_mavlink_start_failed", ex.Message));
+            }
+        }
+
+        private void StartWebRtcMode()
+        {
+            _signalingServer = new SignalingServer(_settings.SignalingPort);
+            _webRtcPeer = new WebRtcPeer(_signalingServer, Log);
+            _webRtcPeer.ChannelOpened += OnWebRtcChannelOpened;
+            _webRtcPeer.ChannelClosed += OnWebRtcChannelClosed;
+            _webRtcPeer.DataReceived += OnWebRtcDataReceived;
+            _signalingServer.Start();
+            Log($"[WebRTC] Signaling server started on ws://localhost:{_settings.SignalingPort}");
+        }
+
+        // ---------------------------------------------------------------
+        // WebRTC DataChannel ↔ UDP bridge
+        // ---------------------------------------------------------------
+
+        private void OnWebRtcChannelOpened()
+        {
+            _mpBridge?.Dispose();
+
+            var port = _settings.MpForwardPort;
+            Log($"[WebRTC] DataChannel opened — GCS bridge UDP localhost:{port}");
+
+            _mpBridge = new MavlinkBridge(BridgeMode.Udp, port);
+            _mpBridge.DataReceived += OnMpDataReceived;
+            _mpBridge.Start();
+        }
+
+        private void OnWebRtcChannelClosed()
+        {
+            Log("[WebRTC] DataChannel closed — stopping GCS bridge");
+            _mpBridge?.Dispose();
+            _mpBridge = null;
+        }
+
+        private int _dcRecvCount;
+
+        /// <summary>Data from server (drone) via DataChannel → forward to GCS + parse for our UI.</summary>
+        private void OnWebRtcDataReceived(byte[] data)
+        {
+            _dcRecvCount++;
+            if (_dcRecvCount == 1)
+                Log($"[WebRTC] First DC data: {data.Length} bytes → GCS bridge");
+
+            _mpBridge?.Send(data);
+            _mavlink.ParseIncoming(data);
+        }
+
+        /// <summary>Data from Mission Planner → forward to server (drone) via DataChannel.</summary>
+        private void OnMpDataReceived(byte[] data)
+        {
+            _webRtcPeer?.Send(data);
         }
 
         // ---------------------------------------------------------------
