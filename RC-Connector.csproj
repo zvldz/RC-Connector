@@ -7,7 +7,7 @@
     <ApplicationIcon>Resources\app.ico</ApplicationIcon>
     <AssemblyName>RC-Connector</AssemblyName>
     <RootNamespace>RcConnector</RootNamespace>
-    <Version>0.6.1</Version>
+    <Version>0.6.2</Version>
     <Nullable>enable</Nullable>
     <Copyright>@zvldz &amp; team</Copyright>
 

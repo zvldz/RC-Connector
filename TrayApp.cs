@@ -252,9 +252,19 @@ namespace RcConnector
                 {
                     bool useR2D2 = _settings.RcForwardFormat == RcForwardFormat.R2D2 ||
                         (_settings.RcForwardFormat == RcForwardFormat.Auto && _parser.LastFormatIsR2D2);
-                    string line = useR2D2
-                        ? "$" + string.Join(",", channels) + ",\r\n"
-                        : "RC " + string.Join(",", channels) + "\n";
+                    string line;
+                    if (useR2D2)
+                    {
+                        // Convert PWM back to R2D2 raw: (pwm - 1500) * 2
+                        var raw = new int[channels.Length];
+                        for (int i = 0; i < channels.Length; i++)
+                            raw[i] = (channels[i] - 1500) * 2;
+                        line = "$" + string.Join(",", raw) + ",\r\n";
+                    }
+                    else
+                    {
+                        line = "RC " + string.Join(",", channels) + "\n";
+                    }
                     var bytes = Encoding.ASCII.GetBytes(line);
                     _rcForwardClient.Send(bytes, bytes.Length, _rcForwardEndpoint);
                 }
