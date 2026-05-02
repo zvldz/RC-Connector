@@ -10,7 +10,7 @@ namespace RcConnector.Core
     internal enum SourceMode { COM, BLE, UDP, Joystick }
     internal enum SerialFormat { Auto, R2D2, EspBridge }
     internal enum TelemetryMode { DirectUdp, WebRtc }
-    internal enum RcForwardFormat { Auto, EspBridge, R2D2 }
+    internal enum RcForwardFormat { Auto, EspBridge, R2D2, R2D2_PWM }
 
     internal sealed class AppSettings
     {

@@ -250,16 +250,31 @@ namespace RcConnector
             {
                 try
                 {
-                    bool useR2D2 = _settings.RcForwardFormat == RcForwardFormat.R2D2 ||
-                        (_settings.RcForwardFormat == RcForwardFormat.Auto && _parser.LastFormatIsR2D2);
                     string line;
-                    if (useR2D2)
+                    var fmt = _settings.RcForwardFormat;
+                    bool wantR2D2Raw = fmt == RcForwardFormat.R2D2 ||
+                        (fmt == RcForwardFormat.Auto && _parser.LastFormatIsR2D2);
+
+                    if (fmt == RcForwardFormat.R2D2_PWM)
                     {
-                        // Convert PWM back to R2D2 raw: (pwm - 1500) * 2
-                        var raw = new int[channels.Length];
-                        for (int i = 0; i < channels.Length; i++)
-                            raw[i] = (channels[i] - 1500) * 2;
-                        line = "$" + string.Join(",", raw) + ",\r\n";
+                        // R2D2 syntax with PWM values (e.g. 988..2012 instead of raw -1024..+1024).
+                        line = "$" + string.Join(",", channels) + "\r\n";
+                    }
+                    else if (wantR2D2Raw)
+                    {
+                        // R2D2 input → R2D2 output: byte-exact passthrough (no PWM round-trip).
+                        // Otherwise (e.g. ESP-Bridge input): convert PWM back to raw.
+                        if (_parser.LastFormatIsR2D2 && _parser.LastR2D2Line != null)
+                        {
+                            line = _parser.LastR2D2Line;
+                        }
+                        else
+                        {
+                            var raw = new int[channels.Length];
+                            for (int i = 0; i < channels.Length; i++)
+                                raw[i] = (channels[i] - 1500) * 2;
+                            line = "$" + string.Join(",", raw) + "\r\n";
+                        }
                     }
                     else
                     {

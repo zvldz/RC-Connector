@@ -31,6 +31,9 @@ namespace RcConnector.Core
         /// <summary>True if last successfully parsed format was R2D2.</summary>
         public bool LastFormatIsR2D2 { get; private set; }
 
+        /// <summary>Last successfully parsed R2D2 line (raw, with terminator). Used for byte-exact forwarding.</summary>
+        public string? LastR2D2Line { get; private set; }
+
         /// <summary>Fired when a valid RC line is parsed. Provides PWM array (up to 24 channels).</summary>
         public event Action<ushort[]>? OnRcData;
 
@@ -111,6 +114,7 @@ namespace RcConnector.Core
         {
             _unparsedBytes = 0;
             _formatLogged = false;
+            LastR2D2Line = null;
             lock (_lock) { _buffer.Clear(); }
         }
 
@@ -144,6 +148,7 @@ namespace RcConnector.Core
             if (rc != null)
             {
                 LastFormatIsR2D2 = detectedFormat != null && detectedFormat.StartsWith("R2D2");
+                LastR2D2Line = LastFormatIsR2D2 ? line + "\r\n" : null;
                 if (!_formatLogged)
                 {
                     _formatLogged = true;
@@ -237,9 +242,10 @@ namespace RcConnector.Core
                     if (!int.TryParse(parts[i].Trim(), out int raw))
                         return null;
 
-                    // Convert raw (-1024..+1024) to PWM (1000-2000)
+                    // Convert raw (-1024..+1024) to PWM. Use full PWM_MIN..PWM_MAX range
+                    // so extremes (988, 2012) survive — needed for R2D2_PWM passthrough.
                     int pwm = (raw / 2) + 1500;
-                    rc[i] = (ushort)Math.Clamp(pwm, 1000, 2000);
+                    rc[i] = (ushort)Math.Clamp(pwm, PWM_MIN, PWM_MAX);
                 }
 
                 // Channels beyond input = 0 (passthrough)

@@ -305,6 +305,7 @@ namespace RcConnector
             _cboRcForwardFormat.Items.Add("Auto");
             _cboRcForwardFormat.Items.Add("ESP-Bridge");
             _cboRcForwardFormat.Items.Add("R2D2");
+            _cboRcForwardFormat.Items.Add("R2D2_PWM");
             _cboRcForwardFormat.SelectedIndex = (int)settings.RcForwardFormat;
             Controls.Add(_cboRcForwardFormat);
 
