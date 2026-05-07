@@ -46,6 +46,8 @@ namespace RcConnector
         // RC forward
         private UdpClient? _rcForwardClient;
         private IPEndPoint? _rcForwardEndpoint;
+        private DateTime _rcForwardLastErrorLog = DateTime.MinValue;
+        private static readonly TimeSpan RcForwardErrorLogCooldown = TimeSpan.FromSeconds(30);
 
         // WebRTC bridge (DataChannel ↔ UDP for Mission Planner)
         private SignalingServer? _signalingServer;
@@ -282,8 +284,19 @@ namespace RcConnector
                     }
                     var bytes = Encoding.ASCII.GetBytes(line);
                     _rcForwardClient.Send(bytes, bytes.Length, _rcForwardEndpoint);
+                    _rcForwardLastErrorLog = DateTime.MinValue;
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // Rate-limit: log first failure and once per cooldown window.
+                    // Don't disable forwarder — Send will succeed automatically when route recovers.
+                    var now = DateTime.UtcNow;
+                    if (now - _rcForwardLastErrorLog >= RcForwardErrorLogCooldown)
+                    {
+                        _rcForwardLastErrorLog = now;
+                        Log(L.Get("log_rc_forward_send_failed", ex.Message));
+                    }
+                }
             }
 
             // Update main form channel bars
@@ -902,15 +915,41 @@ namespace RcConnector
             _rcForwardClient?.Dispose();
             _rcForwardClient = null;
             _rcForwardEndpoint = null;
+            _rcForwardLastErrorLog = DateTime.MinValue;
 
-            if (_settings.RcForwardEnabled &&
-                !string.IsNullOrWhiteSpace(_settings.RcForwardIp) &&
-                IPAddress.TryParse(_settings.RcForwardIp, out var ip) &&
-                _settings.RcForwardPort > 0)
+            if (!_settings.RcForwardEnabled ||
+                string.IsNullOrWhiteSpace(_settings.RcForwardIp) ||
+                !IPAddress.TryParse(_settings.RcForwardIp, out var ip) ||
+                _settings.RcForwardPort <= 0)
+            {
+                return;
+            }
+
+            try
             {
                 _rcForwardClient = new UdpClient(ip.AddressFamily);
                 _rcForwardEndpoint = new IPEndPoint(ip, _settings.RcForwardPort);
                 Log(L.Get("log_rc_forward_started", _settings.RcForwardIp, _settings.RcForwardPort));
+            }
+            catch (Exception ex)
+            {
+                _rcForwardClient?.Dispose();
+                _rcForwardClient = null;
+                _rcForwardEndpoint = null;
+                Log(L.Get("log_rc_forward_create_failed", ex.Message));
+
+                // Show modal on UI thread; fall back to no-owner if MainForm not available.
+                var msg = L.Get("error_rc_forward_socket_msg", _settings.RcForwardIp, ex.Message);
+                var title = L.Get("error_rc_forward_socket_title");
+                if (_mainForm != null && _mainForm.IsHandleCreated && !_mainForm.IsDisposed)
+                {
+                    _mainForm.BeginInvoke(new Action(() =>
+                        MessageBox.Show(_mainForm, msg, title, MessageBoxButtons.OK, MessageBoxIcon.Warning)));
+                }
+                else
+                {
+                    MessageBox.Show(msg, title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
             }
         }
 
